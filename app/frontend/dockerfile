@@ -1,26 +1,7 @@
-FROM node:20-alpine AS builder
-
-WORKDIR /app
-
-# Copiar package files primeiro
-COPY package*.json ./
-
-# Instalar dependências
-RUN npm ci
-
-# Copiar código fonte
-COPY . .
-
-# Build da aplicação
-RUN npm run build
-
-RUN npm install vue-router@4 vuex@4 axios vite@latest
-
-# Stage de produção
 FROM nginx:alpine
 
-# Copiar build
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Copiar arquivo HTML
+COPY index.html /usr/share/nginx/html/index.html
 
 # Copiar configuração do nginx
 COPY nginx.conf /etc/nginx/conf.d/default.conf
