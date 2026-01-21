@@ -1,0 +1,141 @@
+version: '3.8'
+
+#========================BANCO DE DADOS POSTGRESQL========================#
+
+services:
+  image: postgres:16-alpine
+  container_name: postgres
+  environment:
+    POSTGRES_USER: admin
+    POSTGRES_PASSWORD: admin
+    POSTGRES_DB: minibank_db
+  volumes:
+    - postgres_data:/var/lib/postgresql/data
+    - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+  ports:
+    - "5432:5432"
+  networks:
+    - minibank-network
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U admin"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+
+
+#========================MICROSERVIÇOS========================#
+
+auth_service:
+  build:
+    context: ./services/auth
+    dockerfile: dockerfile
+  container_name: auth_service
+  environment:
+    DATABASE_URL: postgres://admin:admin@postgres:5432/minibank_db
+    JWT_SECRET: jwt_secret_key
+    server.port: 3001
+  ports:
+    - "3001:3001"
+  depends_on:
+    postgres:
+      condition: service_healthy
+  networks:
+    - minibank-network
+  restart: unless-stopped
+
+
+user_service:
+  build:
+    context: ./services/user
+    dockerfile: dockerfile
+  container_name: user_service
+  environment:
+    DATABASE_URL: postgres://admin:admin@postgres:5432/minibank_db
+    server.port: 3002
+  ports:
+    - "3002:3002"
+  depends_on:
+    postgres:
+      condition: service_healthy
+  networks:
+    - minibank-network
+  restart: unless-stopped
+
+
+transaction_service:
+  build:
+    context: ./services/transaction
+    dockerfile: dockerfile
+  container_name: transaction_service
+  environment:
+    DATABASE_URL: postgres://admin:admin@postgres:5432/minibank_db
+    server.port: 3003
+  ports:
+    - "3003:3003"
+  depends_on:
+    postgres:
+      condition: service_healthy
+  networks:
+    - minibank-network
+  restart: unless-stopped
+
+
+blockchain_service:
+  build:
+    context: ./services/blockchain
+    dockerfile: dockerfile
+  container_name: blockchain_service
+  environment:
+    DATABASE_URL: postgres://admin:admin@postgres:5432/minibank_db
+    server.port: 3004
+  ports:
+    - "3004:3004"
+  depends_on:
+    postgres:
+      condition: service_healthy
+  networks:
+    - minibank-network
+  restart: unless-stopped
+
+
+#========================FRONTEND========================#
+
+frontend:
+  build:
+    context: ./frontend
+    dockerfile: dockerfile
+  container_name: minibank_frontend
+  environment:
+    VITE_API_URL: http://localhost/api
+  ports:
+    - "5173:80"
+  networks:
+    - minibank-network
+  restart: unless-stopped
+
+#========================NGINX (REVERSE PROXY)========================#
+
+nginx:
+  build:
+    context: ./nginx
+    dockerfile: dockerfile
+  container_name: nginx
+  ports:
+    - "80:80"
+    - "443:443"
+  depends_on:
+    - frontend
+    - auth_service
+    - user_service
+    - transaction_service
+    - blockchain_service
+  networks:
+    - minibank-network
+  restart: unless-stopped
+
+networks:
+  minibank-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
