@@ -3,25 +3,25 @@ version: '3.8'
 #========================BANCO DE DADOS POSTGRESQL========================#
 
 services:
-  image: postgres:16-alpine
-  container_name: postgres
-  environment:
-    POSTGRES_USER: admin
-    POSTGRES_PASSWORD: admin
-    POSTGRES_DB: minibank_db
-  volumes:
-    - postgres_data:/var/lib/postgresql/data
-    - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
-  ports:
-    - "5432:5432"
-  networks:
-    - minibank-network
-  healthcheck:
-    test: ["CMD-SHELL", "pg_isready -U admin"]
-    interval: 10s
-    timeout: 5s
-    retries: 5
-
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: minibank_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - minibank-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 #========================MICROSERVIÇOS========================#
 
