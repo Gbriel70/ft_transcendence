@@ -1,12 +1,12 @@
 services:
-  # ==================== BANCO DE DADOS ====================
+  # ====================POSTGRES========================#
   postgres:
     image: postgres:16-alpine
     container_name: postgres
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin
       POSTGRES_DB: minibank_db
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
@@ -20,7 +20,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # ==================== MICROSERVIÇOS ====================
+  #==================== MICROSERVIÇOS ====================
   auth_service:
     build:
       context: ./app/services/auth
@@ -111,8 +111,10 @@ services:
       dockerfile: dockerfile
     container_name: nginx
     ports:
-      - "80:80"
-      - "443:443"
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - nginx_certs:/etc/nginx/certs
     depends_on:
       - frontend
       - auth_service
@@ -129,3 +131,4 @@ networks:
 
 volumes:
   postgres_data:
+  nginx_certs:
