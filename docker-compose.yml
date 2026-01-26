@@ -5,8 +5,8 @@ services:
     container_name: postgres
     environment:
       POSTGRES_DB: minibank_db
-      POSTGRES_USER: ${POSTGRES_USER:-admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
@@ -15,10 +15,11 @@ services:
     networks:
       - minibank-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin"]
+      test: ["CMD-SHELL", "pg_isready -U admin -d minibank_db"]
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   #==================== MICROSERVIÇOS ====================
   auth_service:
@@ -27,9 +28,14 @@ services:
       dockerfile: dockerfile
     container_name: auth_service
     environment:
-      DATABASE_URL: postgresql://admin:admin@postgres:5432/minibank_db
-      JWT_SECRET: jwt_secret_key
       SERVICE_PORT: 3001
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: minibank_db
+      DB_USER: admin
+      DB_PASSWORD: admin123
+      JWT_SECRET: jwt_secret_key
+      JWT_EXPIRES_IN: 24h
     ports:
       - "3001:3001"
     depends_on:
