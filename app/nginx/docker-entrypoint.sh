@@ -1,21 +1,12 @@
 #!/bin/sh
 set -e
 
-mkdir -p /etc/nginx/certs
 mkdir -p /var/log/nginx
 mkdir -p /tmp
 
-if [ ! -f /etc/nginx/certs/nginx-selfsigned.crt ] || [ ! -f /etc/nginx/certs/nginx-selfsigned.key ]; then
-    echo "Generating self-signed SSL certificates..."
-    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-        -keyout /tmp/nginx-selfsigned.key \
-        -out /tmp/nginx-selfsigned.crt \
-        -subj "/C=BR/ST=SP/L=SaoPaulo/O=FtTranscendence/CN=localhost"
-    mv /tmp/nginx-selfsigned.crt /etc/nginx/certs/
-    mv /tmp/nginx-selfsigned.key /etc/nginx/certs/
-    echo "SSL certificates generated successfully!"
-else
-    echo "SSL certificate and key already exist. Skipping generation."
+if [ ! -f /etc/nginx/certs/nginx-selfsigned.crt ]; then
+    echo "❌ SSL certificates NOT found"
+    exit 1
 fi
 
 if [ -f /etc/nginx/modsecurity/modsecurity.conf ]; then
