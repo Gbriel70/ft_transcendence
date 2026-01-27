@@ -22,7 +22,7 @@ jobs:
 
       - name: 🐳 Build and start services
         run: |
-          docker compose up -d --build vault postgres
+          docker build && docker compose up
           echo "Waiting for initial services..."
           sleep 15
 
