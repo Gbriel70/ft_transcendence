@@ -57,10 +57,9 @@ jobs:
       - name: 🚀 Start vault-init to populate secrets
         run: |
           echo "Starting vault-init to create secrets..."
-          docker compose up vault-init
+          docker compose run --rm vault-init
           
-          echo "Waiting for vault-init to complete..."
-          sleep 5
+          echo "Vault-init completed!"
 
       - name: 🔐 Test Vault authentication
         run: |
@@ -160,6 +159,7 @@ jobs:
             echo "$body" | jq '.'
           else
             echo "❌ Registration failed"
+            echo "Full response: $response"
             exit 1
           fi
 
@@ -168,12 +168,17 @@ jobs:
           echo "Testing login with registered user..."
           
           # Use the user we just created
-          unique_email="vault-test-$(date +%s)@test.com"
+          unique_email="vault-test-login-$(date +%s)@test.com"
           
           # Register first
-          curl -s -X POST http://localhost:3001/register \
+          register_response=$(curl -s -X POST http://localhost:3001/register \
             -H "Content-Type: application/json" \
-            -d "{\"email\":\"$unique_email\",\"password\":\"TestPass123\",\"name\":\"Login Test\"}"
+            -d "{\"email\":\"$unique_email\",\"password\":\"TestPass123\",\"name\":\"Login Test\"}")
+          
+          echo "Registration response: $register_response"
+          
+          # Wait a bit
+          sleep 2
           
           # Now login
           response=$(curl -s -w "\n%{http_code}" -X POST \
@@ -189,8 +194,8 @@ jobs:
           
           if [ "$http_code" == "200" ]; then
             echo "✅ Login successful"
-            echo "$body" | jq '.token' | head -c 50
-            echo "..."
+            token=$(echo "$body" | jq -r '.token')
+            echo "Token preview: ${token:0:50}..."
           else
             echo "❌ Login failed"
             exit 1
@@ -221,9 +226,6 @@ jobs:
         run: |
           echo "=== Vault Logs ==="
           docker logs vault --tail=50
-          echo ""
-          echo "=== Vault Init Logs ==="
-          docker logs vault-init --tail=30
           echo ""
           echo "=== Auth Service Logs ==="
           docker logs auth_service --tail=50 2>&1 || echo "auth_service not running"
