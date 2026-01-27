@@ -2,10 +2,20 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-RUN npm install express bcrypt jsonwebtoken dotenv pg node-vault
+# Copiar package files
+COPY package*.json ./
 
-COPY src ./src
+# Instalar dependências
+RUN npm install --production
 
+# Copiar código fonte
+COPY src/ ./src/
+
+# Criar arquivo .env vazio (secrets vêm do Vault)
+RUN touch .env
+
+# Expor porta
 EXPOSE 3001
 
-CMD ["node", "src/auth.js"]
+# Iniciar serviço
+CMD ["npm", "start"]

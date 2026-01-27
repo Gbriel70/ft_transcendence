@@ -1,74 +1,50 @@
-const {Pool} = require('pg');
-require('dotenv').config();
-
-const requiredEnvVars = ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'];
-requiredEnvVars.forEach((varName) => 
-{
-    if (!process.env[varName])
-    {
-        console.warn(`Warning: Environment variable ${varName} is not set. Using default value.`);
-    }
-});
+const { Pool } = require('pg');
+const { getSecrets } = require('./vault');
 
 let pool;
 
-function createPool()
-{
-    const newPool = new Pool(
-        {
-            host: process.env.DB_HOST,
-            port: parseInt(process.env.DB_PORT) || 5432,
-            database: process.env.DB_NAME,
-            user: process.env.DB_USER,
-            password: process.env.DB_PASSWORD,
-        });
-
-    newPool.on('connect', () =>
-    {
-        console.log('Connected to the database');
+async function initDatabase() {
+  try {
+    console.log('🔄 Initializing database connection...');
+    
+    // Buscar credenciais do Vault
+    const secrets = await getSecrets('secret/auth');
+    
+    pool = new Pool({
+      host: secrets.postgres_host,
+      port: parseInt(secrets.postgres_port),
+      user: secrets.postgres_user,
+      password: secrets.postgres_password,
+      database: secrets.postgres_db,
     });
 
-    newPool.on('error', (err) =>
-    {
-        console.error('Unexpected error on idle client', err);
-        process.exit(-1);
-    });
+    // Testar conexão
+    await pool.query('SELECT NOW()');
+    console.log('✅ Connected to the database');
 
-    return newPool;
+    // Criar tabela de usuários
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        name VARCHAR(255),
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    console.log('✅ Database initialized');
+  } catch (error) {
+    console.error('❌ Database initialization failed:', error.message);
+    throw error;
+  }
 }
 
-function getPool()
-{
-    if (!pool)
-    {
-        pool = createPool();
-    }
-    return pool;
+function getPool() {
+  if (!pool) {
+    throw new Error('Database pool not initialized. Call initDatabase() first.');
+  }
+  return pool;
 }
 
-async function initDatabase()
-{
-    const client = await getPool().connect();
-    try
-    {
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                email VARCHAR(255) UNIQUE NOT NULL,
-                password_hash VARCHAR(255) NOT NULL,
-                name VARCHAR(255),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-        console.log('Database initialized');
-    }catch (error)
-    {
-        console.error('Error initializing database:', error);
-    }finally
-    {
-        client.release();
-    }
-}
-
-module.exports = { getPool, initDatabase};
+module.exports = { initDatabase, getPool };
