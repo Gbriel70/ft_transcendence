@@ -8,7 +8,7 @@ help:
 	@echo "  make logs     - View docker-compose logs"
 	@echo "  make clean    - Remove containers and volumes"
 
-up:
+up: build
 	docker-compose up -d
 
 down:
