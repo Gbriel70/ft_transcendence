@@ -1,0 +1,152 @@
+name: WAF/ModSecurity Tests
+
+on:
+  push:
+    branches: [ main, auth ]
+    paths:
+      - 'app/nginx/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/test-mod.yml'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test-waf:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐳 Build and start services
+        run: |
+          make up
+          sleep 20
+
+      - name: ⏳ Wait for services to be ready
+        run: |
+          echo "Waiting for PostgreSQL..."
+          timeout 60 bash -c 'until docker compose exec -T postgres pg_isready -U admin; do sleep 2; done'
+          
+          echo "Waiting for auth service..."
+          sleep 10
+
+      - name: 🔍 Check ModSecurity is loaded
+        run: |
+          docker exec nginx nginx -V 2>&1 | grep -q modsecurity && echo "✅ ModSecurity loaded" || {
+            echo "❌ ModSecurity NOT loaded"
+            docker logs nginx
+            exit 1
+          }
+
+      - name: 🛡️ Test SQL Injection Protection
+        run: |
+          echo "Testing SQL Injection block..."
+          
+          response=$(curl -k -s -o /dev/null -w "%{http_code}" -X POST \
+            https://localhost:8443/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"email":"admin@test.com OR 1=1-- ","password":"test"}')
+          
+          if [ "$response" == "403" ]; then
+            echo "✅ SQL Injection blocked (403)"
+          else
+            echo "❌ SQL Injection NOT blocked (got $response)"
+            exit 1
+          fi
+
+      - name: 🛡️ Test XSS Protection
+        run: |
+          echo "Testing XSS block..."
+          
+          response=$(curl -k -s -o /dev/null -w "%{http_code}" -X POST \
+            https://localhost:8443/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{"email":"test@test.com","password":"pass123","name":"<script>alert(1)</script>"}')
+          
+          if [ "$response" == "403" ]; then
+            echo "✅ XSS blocked (403)"
+          else
+            echo "❌ XSS NOT blocked (got $response)"
+            exit 1
+          fi
+
+      - name: 🛡️ Test Rate Limiting
+        run: |
+          echo "Testing rate limiting on login endpoint..."
+          
+          blocked=false
+          for i in {1..7}; do
+            code=$(curl -k -s -o /dev/null -w "%{http_code}" -X POST \
+              https://localhost:8443/api/auth/login \
+              -H "Content-Type: application/json" \
+              -d '{"email":"test@test.com","password":"wrong"}')
+            
+            echo "Request $i: HTTP $code"
+            
+            if [ $i -gt 5 ] && [ "$code" == "503" ]; then
+              blocked=true
+              echo "✅ Rate limit kicked in at request $i"
+              break
+            fi
+            
+            sleep 0.5
+          done
+          
+          if [ "$blocked" = false ]; then
+            echo "❌ Rate limiting NOT working"
+            exit 1
+          fi
+
+      - name: ✅ Test Valid Registration
+        run: |
+          echo "Testing legitimate request..."
+          
+          unique_email="user$(date +%s)@test.com"
+          
+          response=$(curl -k -s -w "\n%{http_code}" -X POST \
+            https://localhost:8443/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d "{\"email\":\"$unique_email\",\"password\":\"SecurePass123\",\"name\":\"John Doe\"}")
+          
+          http_code=$(echo "$response" | tail -n1)
+          
+          if [ "$http_code" == "201" ]; then
+            echo "✅ Valid request allowed (201)"
+          else
+            echo "❌ Valid request blocked (got $http_code)"
+            echo "Response: $response"
+            exit 1
+          fi
+
+      - name: 🔍 Check Security Headers
+        run: |
+          echo "Testing security headers..."
+          
+          headers=$(curl -k -s -I https://localhost:8443/)
+          
+          echo "$headers" | grep -q "X-Frame-Options: SAMEORIGIN" && echo "✅ X-Frame-Options OK" || echo "❌ X-Frame-Options missing"
+          echo "$headers" | grep -q "X-Content-Type-Options: nosniff" && echo "✅ X-Content-Type-Options OK" || echo "❌ X-Content-Type-Options missing"
+          echo "$headers" | grep -q "X-XSS-Protection" && echo "✅ X-XSS-Protection OK" || echo "❌ X-XSS-Protection missing"
+
+      - name: 📋 Show ModSecurity audit log
+        if: always()
+        run: |
+          echo "📋 ModSecurity audit log:"
+          docker exec nginx cat /var/log/modsec_audit.log 2>/dev/null || echo "No audit log found"
+
+      - name: 📋 Show service logs
+        if: always()
+        run: |
+          echo "=== NGINX Logs ==="
+          docker logs nginx --tail=50
+          echo ""
+          echo "=== Auth Service Logs ==="
+          docker logs auth_service --tail=50
+
+      - name: 🧹 Cleanup
+        if: always()
+        run: |
+          docker compose down -v
+          docker system prune -f
