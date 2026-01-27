@@ -23,7 +23,7 @@ jobs:
         run: |
           docker compose up -d --build
           echo "Waiting for containers to start..."
-          sleep 20
+          sleep 25
 
       - name: 🔍 Check container status
         run: |
@@ -32,45 +32,43 @@ jobs:
           echo ""
           echo "=== Running Containers ==="
           docker ps
-          echo ""
-          echo "=== All Containers (including stopped) ==="
-          docker ps -a
 
-      - name: 📋 Show build logs if nginx failed
-        if: always()
+      - name: ⏳ Wait for NGINX to be healthy
         run: |
-          echo "=== NGINX Container Logs ==="
-          docker logs nginx 2>&1 || echo "nginx container not found"
-          echo ""
-          echo "=== Docker Compose Logs ==="
-          docker compose logs nginx --tail=50 2>&1 || echo "No logs available"
-
-      - name: ⏳ Wait for services to be ready
-        run: |
-          echo "Waiting for PostgreSQL..."
-          timeout 60 bash -c 'until docker compose exec -T postgres pg_isready -U admin 2>/dev/null; do sleep 2; done' || echo "Postgres check failed"
-          
-          echo "Waiting for nginx..."
-          timeout 30 bash -c 'until docker inspect nginx >/dev/null 2>&1; do sleep 2; done' || {
-            echo "❌ NGINX container never started"
-            docker compose logs nginx
-            exit 1
-          }
+          echo "Waiting for NGINX..."
+          for i in {1..30}; do
+            if docker exec nginx nginx -t 2>&1 | grep -q "successful"; then
+              echo "✅ NGINX is ready!"
+              break
+            fi
+            echo "Attempt $i/30..."
+            sleep 2
+          done
 
       - name: 🔍 Check ModSecurity is loaded
         run: |
-          echo "Checking if ModSecurity module is loaded..."
+          echo "Checking ModSecurity status..."
           
-          if ! docker exec nginx nginx -V 2>&1 | grep -i modsecurity; then
-            echo "❌ ModSecurity NOT found in nginx -V"
+          # Verificar se as regras foram carregadas nos logs
+          if docker logs nginx 2>&1 | grep -q "ModSecurity-nginx v"; then
+            echo "✅ ModSecurity detected in logs!"
+            docker logs nginx 2>&1 | grep "ModSecurity-nginx"
+          else
+            echo "❌ ModSecurity NOT found in logs"
             docker logs nginx --tail=50
             exit 1
           fi
           
-          echo "✅ ModSecurity module found!"
+          # Verificar quantas regras foram carregadas
+          rules=$(docker logs nginx 2>&1 | grep -oP 'rules loaded inline/local/remote: \K[0-9/]+' | head -1)
+          echo "Rules loaded: $rules"
           
-          echo "Checking loaded rules..."
-          docker logs nginx 2>&1 | grep "ModSecurity-nginx" && echo "✅ Rules loaded" || echo "⚠️ No ModSecurity logs yet"
+          if [ ! -z "$rules" ]; then
+            echo "✅ ModSecurity rules successfully loaded"
+          else
+            echo "❌ No rules loaded"
+            exit 1
+          fi
 
       - name: 🛡️ Test SQL Injection Protection
         run: |
