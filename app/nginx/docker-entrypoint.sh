@@ -2,6 +2,8 @@
 set -e
 
 mkdir -p /etc/nginx/certs
+mkdir -p /var/log/nginx
+mkdir -p /tmp
 
 if [ ! -f /etc/nginx/certs/nginx-selfsigned.crt ] || [ ! -f /etc/nginx/certs/nginx-selfsigned.key ]; then
     echo "Generating self-signed SSL certificates..."
@@ -12,6 +14,13 @@ if [ ! -f /etc/nginx/certs/nginx-selfsigned.crt ] || [ ! -f /etc/nginx/certs/ngi
     echo "SSL certificates generated successfully!"
 else
     echo "SSL certificate and key already exist. Skipping generation."
+fi
+
+if [ -f /etc/nginx/modsecurity/modsecurity.conf ]; then
+    echo "✓ ModSecurity configuration found"
+else
+    echo "✗ ModSecurity configuration NOT found"
+    exit 1
 fi
 
 echo "Testing nginx configuration..."

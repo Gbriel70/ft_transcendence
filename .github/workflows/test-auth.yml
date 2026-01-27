@@ -1,60 +1,25 @@
-name: Auth Service Tests
+name: WAF/ModSecurity Tests
 
 on:
   push:
-    branches: [ auth ]
+    branches: [ main, auth ]
     paths:
-      - 'app/services/auth/**'
+      - 'app/nginx/**'
+      - 'docker-compose.yml'
       - '.github/workflows/test-auth.yml'
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  test:
+  test-waf:
     runs-on: ubuntu-latest
     
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: minibank_test
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: 🟢 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: 📦 Install dependencies
-        working-directory: app/services/auth
+      - name: 🐳 Build and start services
         run: |
-          npm install
-          npm ci
-
-      - name: 🧪 Run tests
-        working-directory: app/services/auth
-        env:
-          NODE_ENV: test
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_NAME: minibank_test
-          DB_USER: test_user
-          DB_PASSWORD: test_password
-          JWT_SECRET: test-jwt-secret-for-ci-cd-only
-        run: npm test -- --coverage
-
-      - name: ✅ Tests passed
-        if: success()
-        run: echo "🎉 All tests passed!"
+          docker compose up -d --build
+          sleep 20
