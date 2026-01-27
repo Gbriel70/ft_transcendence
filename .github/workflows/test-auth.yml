@@ -6,8 +6,10 @@ on:
     paths:
       - 'app/nginx/**'
       - 'docker-compose.yml'
+      - '.github/workflows/test-auth.yml'
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   test-waf:
@@ -20,4 +22,4 @@ jobs:
       - name: 🐳 Build and start services
         run: |
           docker-compose up -d --build
-          sleep 15
+          sleep 20
