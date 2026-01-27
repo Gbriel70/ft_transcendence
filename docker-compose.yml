@@ -14,7 +14,7 @@ services:
     networks:
       - minibank-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin"]
+      test: ["CMD-SHELL", "pg_isready -U admin -d transcendence"]
       interval: 5s
       timeout: 5s
       retries: 5
