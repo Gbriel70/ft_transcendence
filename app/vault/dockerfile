@@ -1,0 +1,12 @@
+FROM hashicorp/vault:latest
+
+# Copiar configuração
+COPY vault-config.hcl /vault/config/vault-config.hcl
+
+# Expor porta
+EXPOSE 8200
+
+# Comando de inicialização
+
+ENTRYPOINT ["vault"]
+CMD ["server", "-config=/vault/config/vault-config.hcl"]

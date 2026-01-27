@@ -1,110 +1,76 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const dotenv = require('dotenv');
-const { getPool, initDatabase } = require('./db');
-const { initVault } = require('./vault');
-require('dotenv').config();
+const { getSecrets } = require('./vault');
+const { initDatabase, getPool } = require('./db');
 
 const app = express();
-const PORT = process.env.SERVICE_PORT || 3001;
-const SALT_ROUNDS = 10;
-
 app.use(express.json());
 
-// Registration endpoint
-app.post('/register', async (req, res) => 
-{
-  const {email, password, name} = req.body;
+let JWT_SECRET;
 
-  if (!email || !password || !name)
-    {
-      return res.status(400).json({error: 'Email, password, and name are required'});
-    }
-
-  if (password.length < 6)
-    {
-      return res.status(400).json({error: 'Password must be at least 6 characters long'});
-    }
-
-  try
-  {
-    const pool = getPool();
-    const userExists = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
-    if (userExists.rows.length > 0) 
-      {
-        return res.status(409).json({error: 'Email already registered'});
-      }
-
-    const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
-    const result = await pool.query('INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id', [email, password_hash, name]);
-    const users = result.rows[0];
+// Inicializar secrets do Vault
+async function init() {
+  try {
+    const secrets = await getSecrets('secret/auth');
+    JWT_SECRET = secrets.jwt_secret;
     
-    // Generate JWT token
-    const token = jwt.sign({id: users.id, email}, process.env.JWT_SECRET, {expiresIn: process.env.JWT_EXPIRES_IN || '24h'});
-    res.status(201).json({
-      message: 'User created successfully',
-      user: { id: users.id, email: email, name: name},
-      token
-    });
-  }catch (error)
-  {
-    console.error('Error during registration:', error);
-    res.status(500).json({error: 'Internal server error'});
+    await initDatabase();
+    console.log('✅ Auth service initialized');
+  } catch (error) {
+    console.error('❌ Initialization failed:', error);
+    process.exit(1);
   }
-});
-
-
-// Login endpoint
-app.post('/login', async (req, res) => 
-{
-  const {email, password} = req.body;
-
-  if (!email || !password)
-    {
-      return res.status(400).json({error: 'Email and password are required'});
-    }
-
-  try
-  {
-    const pool = getPool();
-    const result = await pool.query('SELECT id, password_hash FROM users WHERE email = $1', [email]);
-    if (result.rows.length === 0)
-      {
-        return res.status(401).json({error: 'Invalid email or password'});
-      }
-    const user = result.rows[0];
-    const passwordMatch = await bcrypt.compare(password, user.password_hash);
-    if (!passwordMatch)
-      {
-        return res.status(401).json({error: 'Invalid email or password'});
-      }
-    
-    // Generate JWT token
-    const token = jwt.sign({id: user.id, email}, process.env.JWT_SECRET, {expiresIn: process.env.JWT_EXPIRES_IN || '24h'});
-
-    res.json(
-      {
-        message: 'Login successful',
-        user: {id: user.id, email: email, name: user.name},
-        token
-      });
-  }catch (error)
-  {
-    console.error('Error during login:', error);
-    res.status(500).json({error: 'Internal server error'});
-  }
-});
-
-async function bootstrap()
-{
-  await initVault();
-  await initDatabase();
-
-  app.listen(PORT, () => 
-    {
-      console.log(`Auth service running on port ${PORT}`);
-    });
 }
 
-bootstrap();
+// Rotas
+app.post('/register', async (req, res) => {
+  try {
+    const { email, password, name } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    const pool = getPool();
+    const result = await pool.query(
+      'INSERT INTO users (email, password, name) VALUES ($1, $2, $3) RETURNING id, email, name',
+      [email, hashedPassword, name]
+    );
+    
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    const pool = getPool();
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    const user = result.rows[0];
+    const valid = await bcrypt.compare(password, user.password);
+    
+    if (!valid) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '24h' });
+    
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+const PORT = process.env.SERVICE_PORT || 3001;
+
+init().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Auth service running on port ${PORT}`);
+  });
+});

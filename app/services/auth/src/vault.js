@@ -1,37 +1,25 @@
-const fs = require('fs');
-const vault = require('node-vault');
+// filepath: app/services/user/src/vault.js
+// filepath: app/services/transition/src/vault.js
+// filepath: app/services/blockchain/src/vault.js
 
-const readFile = (filePath) => fs.readFileSync(filePath, 'utf8').trim();
+const axios = require('axios');
 
-let client;
+const VAULT_ADDR = process.env.VAULT_ADDR || 'http://localhost:8200';
+const VAULT_TOKEN = process.env.VAULT_TOKEN || 'dev-only-token';
 
-async function getClient()
-{
-  if (client) return client;
-
-  const roleId = readFile(process.env.VAULT_ROLE_ID_FILE);
-  const secretId = readFile(process.env.VAULT_SECRET_ID_FILE);
-
-  client = vault({ endpoint: process.env.VAULT_ADDR });
-  const res = await client.approleLogin({ role_id: roleId, secret_id: secretId });
-  client.token = res.auth.client_token;
-
-  return client;
+async function getSecrets(path) {
+  try {
+    const response = await axios.get(`${VAULT_ADDR}/v1/${path}`, {
+      headers: {
+        'X-Vault-Token': VAULT_TOKEN
+      }
+    });
+    
+    return response.data.data.data; // KV v2 format
+  } catch (error) {
+    console.error(`❌ Error fetching secrets from ${path}:`, error.message);
+    throw error;
+  }
 }
 
-async function getSecret(key)
-{
-  const c = await getClient();
-  const path = process.env.VAULT_KV_PATH;
-  const res = await c.read(path);
-  return res.data.data[key];
-}
-
-async function initVault()
-{
-  process.env.DB_USER = process.env.DB_USER || (await getSecret('db_user'));
-  process.env.DB_PASSWORD = process.env.DB_PASSWORD || (await getSecret('db_password'));
-  process.env.JWT_SECRET = process.env.JWT_SECRET || (await getSecret('jwt_secret'));
-}
-
-module.exports = { initVault, getSecret };
+module.exports = { getSecrets };

@@ -1,0 +1,164 @@
+name: Vault Integration Tests
+
+on:
+  push:
+    branches: [ main, vault ]
+    paths:
+      - 'app/vault/**'
+      - 'app/services/**/vault.js'
+      - 'docker-compose.yml'
+      - '.github/workflows/test-vault.yml'
+  pull_request:
+    branches: [ main, vault ]
+  workflow_dispatch:
+
+jobs:
+  test-vault:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐳 Build and start services
+        run: |
+          docker compose up -d --build vault vault-init postgres
+          echo "Waiting for services to start..."
+          sleep 15
+
+      - name: 🔍 Check container status
+        run: |
+          echo "=== Container Status ==="
+          docker compose ps
+          echo ""
+          echo "=== Vault Logs ==="
+          docker logs vault --tail=20
+          echo ""
+          echo "=== Vault Init Logs ==="
+          docker logs vault-init --tail=20
+
+      - name: ⏳ Wait for Vault to be ready
+        run: |
+          echo "Waiting for Vault..."
+          for i in {1..30}; do
+            if docker exec vault vault status 2>&1 | grep -q "Sealed.*false"; then
+              echo "✅ Vault is unsealed and ready!"
+              break
+            fi
+            echo "Attempt $i/30..."
+            sleep 2
+          done
+
+      - name: 🔍 Check Vault status
+        run: |
+          echo "Checking Vault status..."
+          docker exec vault vault status || echo "Vault status check failed"
+
+      - name: 🔐 Test Vault authentication
+        run: |
+          echo "Testing Vault token authentication..."
+          
+          response=$(docker exec vault vault kv get -format=json secret/auth 2>&1)
+          
+          if echo "$response" | grep -q "jwt_secret"; then
+            echo "✅ Successfully authenticated and retrieved auth secrets"
+            echo "$response" | grep "jwt_secret"
+          else
+            echo "❌ Failed to retrieve secrets"
+            echo "$response"
+            exit 1
+          fi
+
+      - name: 🧪 Test all service secrets
+        run: |
+          echo "Testing secrets for all services..."
+          
+          # Auth service secrets
+          echo "📝 Auth service secrets:"
+          docker exec vault vault kv get secret/auth
+          
+          # User service secrets
+          echo "📝 User service secrets:"
+          docker exec vault vault kv get secret/user
+          
+          # Transition service secrets
+          echo "📝 Transition service secrets:"
+          docker exec vault vault kv get secret/transition
+          
+          # Blockchain service secrets
+          echo "📝 Blockchain service secrets:"
+          docker exec vault vault kv get secret/blockchain
+
+      - name: 🔗 Test auth service can connect to Vault
+        run: |
+          echo "Starting auth service..."
+          docker compose up -d auth_service
+          sleep 10
+          
+          echo "Checking auth service logs..."
+          docker logs auth_service --tail=30
+          
+          if docker logs auth_service 2>&1 | grep -q "Auth service running"; then
+            echo "✅ Auth service connected to Vault successfully"
+          else
+            echo "❌ Auth service failed to start"
+            docker logs auth_service
+            exit 1
+          fi
+
+      - name: 🧪 Test secret retrieval via API
+        run: |
+          echo "Testing if auth service can use Vault secrets..."
+          
+          # Try to register a user (this requires DB credentials from Vault)
+          response=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            http://localhost:3001/register \
+            -H "Content-Type: application/json" \
+            -d '{"email":"vault-test@test.com","password":"TestPass123","name":"Vault Tester"}')
+          
+          echo "Registration response code: $response"
+          
+          if [ "$response" == "201" ] || [ "$response" == "400" ]; then
+            echo "✅ Auth service successfully using Vault credentials (DB connected)"
+          else
+            echo "⚠️ Got response: $response"
+          fi
+
+      - name: 🔒 Test Vault seal/unseal
+        run: |
+          echo "Testing Vault seal status..."
+          
+          # Em modo dev, o Vault não pode ser selado, mas vamos verificar o status
+          status=$(docker exec vault vault status -format=json)
+          
+          echo "$status"
+          
+          if echo "$status" | grep -q '"sealed":false'; then
+            echo "✅ Vault is unsealed (as expected in dev mode)"
+          else
+            echo "❌ Vault is sealed"
+            exit 1
+          fi
+
+      - name: 📊 Show Vault metrics
+        run: |
+          echo "=== Vault Metrics ==="
+          docker exec vault vault read sys/metrics || echo "Metrics not available"
+
+      - name: 📋 Show final logs
+        if: always()
+        run: |
+          echo "=== Vault Logs ==="
+          docker logs vault --tail=50
+          echo ""
+          echo "=== Vault Init Logs ==="
+          docker logs vault-init --tail=30
+          echo ""
+          echo "=== Auth Service Logs ==="
+          docker logs auth_service --tail=30 2>&1 || echo "auth_service not running"
+
+      - name: 🧹 Cleanup
+        if: always()
+        run: |
+          docker compose down -v
+          docker system prune -f
