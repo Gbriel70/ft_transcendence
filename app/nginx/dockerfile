@@ -1,15 +1,14 @@
-FROM nginx:alpine
+FROM owasp/modsecurity-crs:nginx-alpine
 
-# Instalar ModSecurity
-RUN apk add --no-cache libmodsecurity3 modsecurity-nginx
-
-# Copiar configs
+# Copiar configurações customizadas
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY modsecurity.conf /etc/nginx/modsecurity/modsecurity.conf
-COPY docker-entrypoint.sh /docker-entrypoint.sh
 
+# Copiar script de inicialização
+COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 EXPOSE 80 443
 
-CMD ["/docker-entrypoint.sh"]
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["nginx", "-g", "daemon off;"]
