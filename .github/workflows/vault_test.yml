@@ -7,7 +7,7 @@ on:
       - 'app/vault/**'
       - 'app/services/**/vault.js'
       - 'docker-compose.yml'
-      - '.github/workflows/test-vault.yml'
+      - '.github/workflows/vault_test.yml'
   pull_request:
     branches: [ main, vault ]
   workflow_dispatch:
@@ -22,8 +22,8 @@ jobs:
 
       - name: 🐳 Build and start services
         run: |
-          docker compose up -d --build vault vault-init postgres
-          echo "Waiting for services to start..."
+          docker compose up -d --build vault postgres
+          echo "Waiting for initial services..."
           sleep 15
 
       - name: 🔍 Check container status
@@ -34,8 +34,8 @@ jobs:
           echo "=== Vault Logs ==="
           docker logs vault --tail=20
           echo ""
-          echo "=== Vault Init Logs ==="
-          docker logs vault-init --tail=20
+          echo "=== Postgres Logs ==="
+          docker logs postgres --tail=10
 
       - name: ⏳ Wait for Vault to be ready
         run: |
@@ -52,7 +52,15 @@ jobs:
       - name: 🔍 Check Vault status
         run: |
           echo "Checking Vault status..."
-          docker exec vault vault status || echo "Vault status check failed"
+          docker exec vault vault status
+
+      - name: 🚀 Start vault-init to populate secrets
+        run: |
+          echo "Starting vault-init to create secrets..."
+          docker compose up vault-init
+          
+          echo "Waiting for vault-init to complete..."
+          sleep 5
 
       - name: 🔐 Test Vault authentication
         run: |
@@ -62,7 +70,7 @@ jobs:
           
           if echo "$response" | grep -q "jwt_secret"; then
             echo "✅ Successfully authenticated and retrieved auth secrets"
-            echo "$response" | grep "jwt_secret"
+            echo "$response" | jq '.data.data'
           else
             echo "❌ Failed to retrieve secrets"
             echo "$response"
@@ -76,62 +84,125 @@ jobs:
           # Auth service secrets
           echo "📝 Auth service secrets:"
           docker exec vault vault kv get secret/auth
+          echo ""
           
           # User service secrets
           echo "📝 User service secrets:"
           docker exec vault vault kv get secret/user
+          echo ""
           
           # Transition service secrets
           echo "📝 Transition service secrets:"
           docker exec vault vault kv get secret/transition
+          echo ""
           
           # Blockchain service secrets
           echo "📝 Blockchain service secrets:"
           docker exec vault vault kv get secret/blockchain
 
-      - name: 🔗 Test auth service can connect to Vault
+      - name: 🔗 Build and start auth service
         run: |
-          echo "Starting auth service..."
-          docker compose up -d auth_service
-          sleep 10
+          echo "Building and starting auth service..."
+          docker compose up -d --build auth_service
           
-          echo "Checking auth service logs..."
-          docker logs auth_service --tail=30
-          
+          echo "Waiting for auth service to initialize..."
+          sleep 15
+
+      - name: 📋 Check auth service logs
+        run: |
+          echo "=== Auth Service Logs ==="
+          docker logs auth_service --tail=50
+
+      - name: ✅ Verify auth service is running
+        run: |
           if docker logs auth_service 2>&1 | grep -q "Auth service running"; then
-            echo "✅ Auth service connected to Vault successfully"
+            echo "✅ Auth service connected to Vault and started successfully"
           else
-            echo "❌ Auth service failed to start"
+            echo "❌ Auth service failed to start properly"
             docker logs auth_service
             exit 1
           fi
 
-      - name: 🧪 Test secret retrieval via API
+      - name: 🧪 Test auth service health endpoint
         run: |
-          echo "Testing if auth service can use Vault secrets..."
+          echo "Testing auth service health endpoint..."
           
-          # Try to register a user (this requires DB credentials from Vault)
-          response=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-            http://localhost:3001/register \
-            -H "Content-Type: application/json" \
-            -d '{"email":"vault-test@test.com","password":"TestPass123","name":"Vault Tester"}')
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/health)
           
-          echo "Registration response code: $response"
+          echo "Health check response: $response"
           
-          if [ "$response" == "201" ] || [ "$response" == "400" ]; then
-            echo "✅ Auth service successfully using Vault credentials (DB connected)"
+          if [ "$response" == "200" ]; then
+            echo "✅ Auth service is healthy"
           else
-            echo "⚠️ Got response: $response"
+            echo "❌ Auth service health check failed"
+            exit 1
           fi
 
-      - name: 🔒 Test Vault seal/unseal
+      - name: 🧪 Test user registration (Vault → DB flow)
+        run: |
+          echo "Testing user registration (verifies Vault secrets work)..."
+          
+          unique_email="vault-test-$(date +%s)@test.com"
+          
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            http://localhost:3001/register \
+            -H "Content-Type: application/json" \
+            -d "{\"email\":\"$unique_email\",\"password\":\"TestPass123\",\"name\":\"Vault Tester\"}")
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+          
+          echo "Response code: $http_code"
+          echo "Response body: $body"
+          
+          if [ "$http_code" == "201" ]; then
+            echo "✅ Registration successful - Vault credentials work!"
+            echo "$body" | jq '.'
+          else
+            echo "❌ Registration failed"
+            exit 1
+          fi
+
+      - name: 🧪 Test user login
+        run: |
+          echo "Testing login with registered user..."
+          
+          # Use the user we just created
+          unique_email="vault-test-$(date +%s)@test.com"
+          
+          # Register first
+          curl -s -X POST http://localhost:3001/register \
+            -H "Content-Type: application/json" \
+            -d "{\"email\":\"$unique_email\",\"password\":\"TestPass123\",\"name\":\"Login Test\"}"
+          
+          # Now login
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            http://localhost:3001/login \
+            -H "Content-Type: application/json" \
+            -d "{\"email\":\"$unique_email\",\"password\":\"TestPass123\"}")
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+          
+          echo "Response code: $http_code"
+          echo "Response body: $body"
+          
+          if [ "$http_code" == "200" ]; then
+            echo "✅ Login successful"
+            echo "$body" | jq '.token' | head -c 50
+            echo "..."
+          else
+            echo "❌ Login failed"
+            exit 1
+          fi
+
+      - name: 🔒 Test Vault seal status
         run: |
           echo "Testing Vault seal status..."
           
-          # Em modo dev, o Vault não pode ser selado, mas vamos verificar o status
           status=$(docker exec vault vault status -format=json)
           
-          echo "$status"
+          echo "$status" | jq '.'
           
           if echo "$status" | grep -q '"sealed":false'; then
             echo "✅ Vault is unsealed (as expected in dev mode)"
@@ -142,8 +213,8 @@ jobs:
 
       - name: 📊 Show Vault metrics
         run: |
-          echo "=== Vault Metrics ==="
-          docker exec vault vault read sys/metrics || echo "Metrics not available"
+          echo "=== Vault Token Info ==="
+          docker exec vault vault token lookup || echo "Token lookup not available"
 
       - name: 📋 Show final logs
         if: always()
@@ -155,7 +226,10 @@ jobs:
           docker logs vault-init --tail=30
           echo ""
           echo "=== Auth Service Logs ==="
-          docker logs auth_service --tail=30 2>&1 || echo "auth_service not running"
+          docker logs auth_service --tail=50 2>&1 || echo "auth_service not running"
+          echo ""
+          echo "=== Postgres Logs ==="
+          docker logs postgres --tail=20
 
       - name: 🧹 Cleanup
         if: always()
