@@ -2,7 +2,8 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const dotenv = require('dotenv');
-const { pool, initDatabase } = require('./db');
+const { getPool, initDatabase } = require('./db');
+const { initVault } = require('./vault');
 require('dotenv').config();
 
 const app = express();
@@ -10,9 +11,6 @@ const PORT = process.env.SERVICE_PORT || 3001;
 const SALT_ROUNDS = 10;
 
 app.use(express.json());
-
-initDatabase();
-
 
 // Registration endpoint
 app.post('/register', async (req, res) => 
@@ -31,6 +29,7 @@ app.post('/register', async (req, res) =>
 
   try
   {
+    const pool = getPool();
     const userExists = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     if (userExists.rows.length > 0) 
       {
@@ -68,6 +67,7 @@ app.post('/login', async (req, res) =>
 
   try
   {
+    const pool = getPool();
     const result = await pool.query('SELECT id, password_hash FROM users WHERE email = $1', [email]);
     if (result.rows.length === 0)
       {
@@ -96,7 +96,15 @@ app.post('/login', async (req, res) =>
   }
 });
 
-app.listen(PORT, () => 
-  {
-    console.log(`Auth service running on port ${PORT}`);
-  });
+async function bootstrap()
+{
+  await initVault();
+  await initDatabase();
+
+  app.listen(PORT, () => 
+    {
+      console.log(`Auth service running on port ${PORT}`);
+    });
+}
+
+bootstrap();

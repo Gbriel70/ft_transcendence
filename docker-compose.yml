@@ -21,6 +21,37 @@ services:
       retries: 5
     restart: unless-stopped
 
+  vault:
+    image: hashicorp/vault:1.16
+    container_name: vault
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - ./vault/config/vault.hcl:/vault/config/vault.hcl:ro
+      - vault_data:/vault/data
+      - vault_init:/vault/init
+      - ./vault/policies:/vault/policies:ro
+    command: ["vault", "server", "-config=/vault/config/vault.hcl"]
+    ports:
+      - "8200:8200"
+    networks:
+      - minibank-network
+    restart: unless-stopped
+
+  vault-init:
+    image: hashicorp/vault:1.16
+    container_name: vault_init
+    depends_on:
+      - vault
+    volumes:
+      - ./vault/scripts/init.sh:/init.sh:ro
+      - vault_init:/vault/init
+      - ./vault/policies:/vault/policies:ro
+    entrypoint: ["sh", "/init.sh"]
+    networks:
+      - minibank-network
+    restart: "no"
+
   #==================== MICROSERVIÇOS ====================
   auth_service:
     build:
@@ -32,12 +63,15 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: minibank_db
-      DB_USER: admin
-      DB_PASSWORD: admin123
-      JWT_SECRET: jwt_secret_key
       JWT_EXPIRES_IN: 24h
+      VAULT_ADDR: http://vault:8200
+      VAULT_ROLE_ID_FILE: /vault/init/role_id_auth
+      VAULT_SECRET_ID_FILE: /vault/init/secret_id_auth
+      VAULT_KV_PATH: secret/auth
     ports:
       - "3001:3001"
+    volumes:
+      - vault_init:/vault/init:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -51,10 +85,15 @@ services:
       dockerfile: dockerfile
     container_name: user_service
     environment:
-      DATABASE_URL: postgresql://admin:admin@postgres:5432/minibank_db
       SERVICE_PORT: 3002
+      VAULT_ADDR: http://vault:8200
+      VAULT_ROLE_ID_FILE: /vault/init/role_id_user
+      VAULT_SECRET_ID_FILE: /vault/init/secret_id_user
+      VAULT_KV_PATH: secret/user
     ports:
       - "3002:3002"
+    volumes:
+      - vault_init:/vault/init:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,10 +107,15 @@ services:
       dockerfile: dockerfile
     container_name: transition_service
     environment:
-      DATABASE_URL: postgresql://admin:admin@postgres:5432/minibank_db
       SERVICE_PORT: 3003
+      VAULT_ADDR: http://vault:8200
+      VAULT_ROLE_ID_FILE: /vault/init/role_id_transition
+      VAULT_SECRET_ID_FILE: /vault/init/secret_id_transition
+      VAULT_KV_PATH: secret/transition
     ports:
       - "3003:3003"
+    volumes:
+      - vault_init:/vault/init:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -85,10 +129,15 @@ services:
       dockerfile: dockerfile
     container_name: blockchain_service
     environment:
-      DATABASE_URL: postgresql://admin:admin@postgres:5432/minibank_db
       SERVICE_PORT: 3004
+      VAULT_ADDR: http://vault:8200
+      VAULT_ROLE_ID_FILE: /vault/init/role_id_blockchain
+      VAULT_SECRET_ID_FILE: /vault/init/secret_id_blockchain
+      VAULT_KV_PATH: secret/blockchain
     ports:
       - "3004:3004"
+    volumes:
+      - vault_init:/vault/init:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -138,3 +187,5 @@ networks:
 volumes:
   postgres_data:
   nginx_certs:
+  vault_data:
+  vault_init:
