@@ -22,21 +22,55 @@ jobs:
       - name: 🐳 Build and start services
         run: |
           docker compose up -d --build
+          echo "Waiting for containers to start..."
           sleep 20
+
+      - name: 🔍 Check container status
+        run: |
+          echo "=== Container Status ==="
+          docker compose ps
+          echo ""
+          echo "=== Running Containers ==="
+          docker ps
+          echo ""
+          echo "=== All Containers (including stopped) ==="
+          docker ps -a
+
+      - name: 📋 Show build logs if nginx failed
+        if: always()
+        run: |
+          echo "=== NGINX Container Logs ==="
+          docker logs nginx 2>&1 || echo "nginx container not found"
+          echo ""
+          echo "=== Docker Compose Logs ==="
+          docker compose logs nginx --tail=50 2>&1 || echo "No logs available"
 
       - name: ⏳ Wait for services to be ready
         run: |
           echo "Waiting for PostgreSQL..."
-          sleep 10
+          timeout 60 bash -c 'until docker compose exec -T postgres pg_isready -U admin 2>/dev/null; do sleep 2; done' || echo "Postgres check failed"
+          
+          echo "Waiting for nginx..."
+          timeout 30 bash -c 'until docker inspect nginx >/dev/null 2>&1; do sleep 2; done' || {
+            echo "❌ NGINX container never started"
+            docker compose logs nginx
+            exit 1
+          }
 
       - name: 🔍 Check ModSecurity is loaded
         run: |
           echo "Checking if ModSecurity module is loaded..."
-          docker exec nginx nginx -V 2>&1 | grep modsecurity
+          
+          if ! docker exec nginx nginx -V 2>&1 | grep -i modsecurity; then
+            echo "❌ ModSecurity NOT found in nginx -V"
+            docker logs nginx --tail=50
+            exit 1
+          fi
+          
           echo "✅ ModSecurity module found!"
           
           echo "Checking loaded rules..."
-          docker logs nginx 2>&1 | grep "ModSecurity-nginx" || echo "⚠️ No ModSecurity logs yet"
+          docker logs nginx 2>&1 | grep "ModSecurity-nginx" && echo "✅ Rules loaded" || echo "⚠️ No ModSecurity logs yet"
 
       - name: 🛡️ Test SQL Injection Protection
         run: |
@@ -136,10 +170,10 @@ jobs:
         if: always()
         run: |
           echo "=== NGINX Logs ==="
-          docker logs nginx --tail=30
+          docker logs nginx --tail=50 2>&1 || echo "nginx container not available"
           echo ""
           echo "=== Auth Service Logs ==="
-          docker logs auth_service --tail=20
+          docker logs auth_service --tail=30 2>&1 || echo "auth_service not available"
 
       - name: 🧹 Cleanup
         if: always()
