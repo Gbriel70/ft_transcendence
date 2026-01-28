@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS users.profiles (
     display_name VARCHAR(255),
     avatar_url TEXT,
     bio TEXT,
+    balance DECIMAL(10, 2) DEFAULT 0.00,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

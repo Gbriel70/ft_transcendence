@@ -15,7 +15,7 @@ services:
     networks:
       - minibank-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d minibank_db"]
+      test: [ "CMD-SHELL", "pg_isready -U admin -d minibank_db" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -51,7 +51,7 @@ services:
       dockerfile: dockerfile
     container_name: user_service
     environment:
-      DATABASE_URL: postgresql://admin:admin@postgres:5432/minibank_db
+      DATABASE_URL: postgresql://admin:admin123@postgres:5432/minibank_db
       SERVICE_PORT: 3002
     ports:
       - "3002:3002"
@@ -68,7 +68,7 @@ services:
       dockerfile: dockerfile
     container_name: transition_service
     environment:
-      DATABASE_URL: postgresql://admin:admin@postgres:5432/minibank_db
+      DATABASE_URL: postgresql://admin:admin123@postgres:5432/minibank_db
       SERVICE_PORT: 3003
     ports:
       - "3003:3003"
@@ -85,7 +85,7 @@ services:
       dockerfile: dockerfile
     container_name: blockchain_service
     environment:
-      DATABASE_URL: postgresql://admin:admin@postgres:5432/minibank_db
+      DATABASE_URL: postgresql://admin:admin123@postgres:5432/minibank_db
       SERVICE_PORT: 3004
     ports:
       - "3004:3004"
