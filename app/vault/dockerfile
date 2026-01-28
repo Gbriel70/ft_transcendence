@@ -1,12 +1,14 @@
-FROM hashicorp/vault:latest
+FROM hashicorp/vault:1.15
 
-# Copiar configuração
+RUN apk add --no-cache openssl
+
+RUN mkdir -p /vault/data /vault/logs /vault/config
+
 COPY vault-config.hcl /vault/config/vault-config.hcl
+COPY init-vault.sh /vault/init-vault.sh
 
-# Expor porta
+RUN chmod +x /vault/init-vault.sh
+
 EXPOSE 8200
 
-# Comando de inicialização
-
-ENTRYPOINT ["vault"]
-CMD ["server", "-config=/vault/config/vault-config.hcl"]
+ENTRYPOINT ["/vault/init-vault.sh"]

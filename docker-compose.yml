@@ -1,11 +1,37 @@
 services:
+  #====================VAULT========================#
+  vault:
+    build:
+      context: ./app/vault
+      dockerfile: dockerfile
+    container_name: vault
+    ports:
+      - "8200:8200"
+    volumes:
+      - vault_data:/vault/data
+      - vault_logs:/vault/logs
+    environment:
+      - VAULT_ADDR=http://0.0.0.0:8200
+      - SKIP_SETCAP=true
+    cap_add:
+      - IPC_LOCK
+    networks:
+      - minibank-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8200/v1/sys/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ====================POSTGRES========================#
   postgres:
     image: postgres:16-alpine
     container_name: postgres
     environment:
+      POSTGRES_DB: minibank_db
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: admin123
-      POSTGRES_DB: transcendence
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
@@ -14,148 +40,131 @@ services:
     networks:
       - minibank-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d transcendence"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U admin -d minibank_db"]
+      interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
 
-  # ===== VAULT =====
-  vault:
-    build:
-      context: ./app/vault
-      dockerfile: dockerfile
-    container_name: vault
-    environment:
-      VAULT_DEV_ROOT_TOKEN_ID: "dev-only-token"
-      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
-    ports:
-      - "8200:8200"
-    networks:
-      - minibank-network
-    volumes:
-      - vault_data:/vault/data
-    cap_add:
-      - IPC_LOCK
-    restart: unless-stopped
-    command: server -dev -dev-root-token-id="dev-only-token"
-
-  # Inicializador do Vault (roda uma vez e para)
-  vault-init:
-    image: hashicorp/vault:latest
-    container_name: vault-init
-    environment:
-      VAULT_ADDR: "http://vault:8200"
-      VAULT_TOKEN: "dev-only-token"
-    depends_on:
-      - vault
-    networks:
-      - minibank-network
-    volumes:
-      - ./app/vault/init-vault.sh:/init-vault.sh
-    entrypoint: ["/bin/sh", "/init-vault.sh"]
-    restart: "no"
-
+  #==================== AUTH SERVICE  ====================
   auth_service:
     build:
       context: ./app/services/auth
       dockerfile: dockerfile
     container_name: auth_service
     environment:
-      SERVICE_PORT: 3001
-      VAULT_ADDR: "http://vault:8200"
-      VAULT_TOKEN: "dev-only-token"
+      VAULT_ADDR: http://vault:8200
+      SERVICE_NAME: auth
     ports:
       - "3001:3001"
+    volumes:
+      - vault_data:/vault-keys:ro
     depends_on:
+      vault:
+        condition: service_healthy
       postgres:
         condition: service_healthy
-      vault-init:
-        condition: service_completed_successfully
     networks:
       - minibank-network
     restart: unless-stopped
 
+  # ==================== USER SERVICE  ====================
   user_service:
     build:
       context: ./app/services/user
       dockerfile: dockerfile
     container_name: user_service
     environment:
-      SERVICE_PORT: 3002
-      VAULT_ADDR: "http://vault:8200"
-      VAULT_TOKEN: "dev-only-token"
+      VAULT_ADDR: http://vault:8200
+      SERVICE_NAME: user
     ports:
       - "3002:3002"
+    volumes:
+      - vault_data:/vault-keys:ro
     depends_on:
+      vault:
+        condition: service_healthy
       postgres:
         condition: service_healthy
-      vault-init:
-        condition: service_completed_successfully
     networks:
       - minibank-network
     restart: unless-stopped
 
+  # ==================== TRANSITION SERVICE  ====================
   transition_service:
     build:
       context: ./app/services/transition
       dockerfile: dockerfile
     container_name: transition_service
     environment:
-      SERVICE_PORT: 3003
-      VAULT_ADDR: "http://vault:8200"
-      VAULT_TOKEN: "dev-only-token"
+      VAULT_ADDR: http://vault:8200
+      SERVICE_NAME: transition
     ports:
       - "3003:3003"
+    volumes:
+      - vault_data:/vault-keys:ro
     depends_on:
+      vault:
+        condition: service_healthy
       postgres:
         condition: service_healthy
-      vault-init:
-        condition: service_completed_successfully
     networks:
       - minibank-network
     restart: unless-stopped
 
+  # ==================== BLOCKCHAIN SERVICE  ====================
   blockchain_service:
     build:
       context: ./app/services/blockchain
       dockerfile: dockerfile
     container_name: blockchain_service
     environment:
-      SERVICE_PORT: 3004
-      VAULT_ADDR: "http://vault:8200"
-      VAULT_TOKEN: "dev-only-token"
+      VAULT_ADDR: http://vault:8200
+      SERVICE_NAME: blockchain
     ports:
       - "3004:3004"
+    volumes:
+      - vault_data:/vault-keys:ro
     depends_on:
-      vault-init:
-        condition: service_completed_successfully
+      vault:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     networks:
       - minibank-network
     restart: unless-stopped
 
+  # ==================== FRONTEND ====================
   frontend:
     build:
       context: ./app/frontend
       dockerfile: dockerfile
-    container_name: frontend
+    container_name: minibank_frontend
+    environment:
+      VITE_API_URL: http://localhost/api
     ports:
-      - "8080:80"
+      - "5173:80"
     networks:
       - minibank-network
     restart: unless-stopped
 
+  # ==================== NGINX WAF====================
   nginx:
     build:
       context: ./app/nginx
       dockerfile: dockerfile
     container_name: nginx
     ports:
-      - "80:80"
+      - "8080:80"
       - "8443:443"
+    volumes:
+      - nginx_certs:/etc/nginx/certs
     depends_on:
       - frontend
       - auth_service
+      - user_service
+      - transition_service
+      - blockchain_service
     networks:
       - minibank-network
     restart: unless-stopped
@@ -166,4 +175,6 @@ networks:
 
 volumes:
   postgres_data:
+  nginx_certs:
   vault_data:
+  vault_logs:

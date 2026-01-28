@@ -2,20 +2,14 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copiar package files
 COPY package*.json ./
 
-# Instalar dependências
 RUN npm install --production
 
-# Copiar código fonte
-COPY src/ ./src/
+COPY . .
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-# Criar arquivo .env vazio (secrets vêm do Vault)
-RUN touch .env
-
-# Expor porta
 EXPOSE 3001
 
-# Iniciar serviço
-CMD ["npm", "start"]
+CMD ["/app/entrypoint.sh"]
