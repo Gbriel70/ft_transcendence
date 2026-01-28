@@ -1,20 +1,35 @@
 FROM owasp/modsecurity-crs:nginx-alpine
 
-RUN mkdir -p /etc/nginx/certs /var/log
+USER root
 
-RUN openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-    -keyout /etc/nginx/certs/nginx-selfsigned.key \
-    -out /etc/nginx/certs/nginx-selfsigned.crt \
-    -subj "/C=BR/ST=SP/L=SaoPaulo/O=FtTranscendence/CN=localhost" && \
-    chmod 644 /etc/nginx/certs/nginx-selfsigned.crt && \
-    chmod 600 /etc/nginx/certs/nginx-selfsigned.key
+RUN apk add --no-cache \
+    openssl \
+    curl
 
-# Copiar configurações customizadas
+RUN mkdir -p \
+    /etc/nginx/certs \
+    /etc/nginx/conf.d \
+    /etc/nginx/sites \
+    /var/log/modsecurity
+
 COPY nginx.conf /etc/nginx/nginx.conf
-COPY modsecurity.conf /etc/nginx/modsecurity/modsecurity.conf
+COPY conf.d/ /etc/nginx/conf.d/
+COPY sites/ /etc/nginx/sites/
 
-# Copiar script de inicialização
-COPY --chmod=755 docker-entrypoint.sh /docker-entrypoint.sh
+COPY modsecurity/modsecurity.conf /etc/modsecurity.d/modsecurity.conf
+COPY modsecurity/custom_rules.conf /etc/modsecurity.d/user-conf/custom_rules.conf
+COPY modsecurity/exclusions.conf /etc/modsecurity.d/user-conf/exclusions.conf
+
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+
+RUN chmod +x /docker-entrypoint.sh && \
+    chown -R nginx:nginx \
+    /var/log/nginx \
+    /var/log/modsecurity \
+    /var/cache/nginx 
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost/health || exit 1
 
 EXPOSE 80 443
 
