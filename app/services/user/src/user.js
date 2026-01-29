@@ -1,5 +1,5 @@
 const express = require('express');
-const { pool } = require('./db');
+const { initVault } = require('./vault');
 
 const app = express();
 const PORT = process.env.SERVICE_PORT || 3002;
@@ -40,6 +40,13 @@ app.get('/profile/:id', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`✅ User service running on port ${PORT}`);
-});
+async function bootstrap()
+{
+  await initVault();
+
+  app.listen(PORT, () => {
+    console.log(`✅ User service running on port ${PORT}`);
+  });
+}
+
+bootstrap();

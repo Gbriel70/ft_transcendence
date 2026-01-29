@@ -1,4 +1,29 @@
 services:
+  #====================VAULT========================#
+  vault:
+    build:
+      context: ./app/vault
+      dockerfile: dockerfile
+    container_name: vault
+    ports:
+      - "8200:8200"
+    volumes:
+      - vault_data:/vault/data
+      - vault_logs:/vault/logs
+    environment:
+      - VAULT_ADDR=http://0.0.0.0:8200
+      - SKIP_SETCAP=true
+    cap_add:
+      - IPC_LOCK
+    networks:
+      - minibank-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8200/v1/sys/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   # ====================POSTGRES========================#
   postgres:
     image: postgres:16-alpine
@@ -21,75 +46,88 @@ services:
       retries: 5
     restart: unless-stopped
 
-  #==================== MICROSERVIÇOS ====================
+  #==================== AUTH SERVICE  ====================
   auth_service:
     build:
       context: ./app/services/auth
       dockerfile: dockerfile
     container_name: auth_service
     environment:
-      SERVICE_PORT: 3001
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: minibank_db
-      DB_USER: admin
-      DB_PASSWORD: admin123
-      JWT_SECRET: jwt_secret_key
-      JWT_EXPIRES_IN: 24h
+      VAULT_ADDR: http://vault:8200
+      SERVICE_NAME: auth
     ports:
       - "3001:3001"
+    volumes:
+      - vault_data:/vault-keys:ro
     depends_on:
+      vault:
+        condition: service_healthy
       postgres:
         condition: service_healthy
     networks:
       - minibank-network
     restart: unless-stopped
 
+  # ==================== USER SERVICE  ====================
   user_service:
     build:
       context: ./app/services/user
       dockerfile: dockerfile
     container_name: user_service
     environment:
-      DATABASE_URL: postgresql://admin:admin123@postgres:5432/minibank_db
-      SERVICE_PORT: 3002
+      VAULT_ADDR: http://vault:8200
+      SERVICE_NAME: user
     ports:
       - "3002:3002"
+    volumes:
+      - vault_data:/vault-keys:ro
     depends_on:
+      vault:
+        condition: service_healthy
       postgres:
         condition: service_healthy
     networks:
       - minibank-network
     restart: unless-stopped
 
+  # ==================== TRANSITION SERVICE  ====================
   transition_service:
     build:
       context: ./app/services/transition
       dockerfile: dockerfile
     container_name: transition_service
     environment:
-      DATABASE_URL: postgresql://admin:admin123@postgres:5432/minibank_db
-      SERVICE_PORT: 3003
+      VAULT_ADDR: http://vault:8200
+      SERVICE_NAME: transition
     ports:
       - "3003:3003"
+    volumes:
+      - vault_data:/vault-keys:ro
     depends_on:
+      vault:
+        condition: service_healthy
       postgres:
         condition: service_healthy
     networks:
       - minibank-network
     restart: unless-stopped
 
+  # ==================== BLOCKCHAIN SERVICE  ====================
   blockchain_service:
     build:
       context: ./app/services/blockchain
       dockerfile: dockerfile
     container_name: blockchain_service
     environment:
-      DATABASE_URL: postgresql://admin:admin123@postgres:5432/minibank_db
-      SERVICE_PORT: 3004
+      VAULT_ADDR: http://vault:8200
+      SERVICE_NAME: blockchain
     ports:
       - "3004:3004"
+    volumes:
+      - vault_data:/vault-keys:ro
     depends_on:
+      vault:
+        condition: service_healthy
       postgres:
         condition: service_healthy
     networks:
@@ -110,7 +148,7 @@ services:
       - minibank-network
     restart: unless-stopped
 
-  # ==================== NGINX ====================
+  # ==================== NGINX WAF====================
   nginx:
     build:
       context: ./app/nginx
@@ -138,3 +176,5 @@ networks:
 volumes:
   postgres_data:
   nginx_certs:
+  vault_data:
+  vault_logs:

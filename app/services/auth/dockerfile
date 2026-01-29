@@ -2,10 +2,14 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-RUN npm install express bcrypt jsonwebtoken dotenv pg
+COPY package*.json ./
 
-COPY src ./src
+RUN npm install --production
+
+COPY . .
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 3001
 
-CMD ["node", "src/auth.js"]
+CMD ["/app/entrypoint.sh"]
