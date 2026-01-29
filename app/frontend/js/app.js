@@ -15,18 +15,24 @@ const router = async () => {
 
     if (request === '') request = '/';
 
-    let view = routes[request];
+    const view = routes[request];
 
     if (!view) {
         content.innerHTML = '<h1>404 Error - Page Not Found</h1>';
         return;
     }
 
-    content.innerHTML = await view.render();
+    try
+    {
+        content.innerHTML = await view.render();
+        if (view.afterRender) await view.afterRender();
+    }catch (error)
+    {
+        console.error('Error rendering view:', error);
+        content.innerHTML = '<h1>Error loading page. Please try again later.</h1>';
+    }
 
-    if (view.afterRender) await view.afterRender();
 };
 
 window.addEventListener('hashchange', router);
-
 window.addEventListener('load', router);

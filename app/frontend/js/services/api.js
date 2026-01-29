@@ -47,10 +47,6 @@ const api = {
             body: JSON.stringify({ name: username, email, password })
         });
         const data = await handleResponse(response);
-        if (data.token) {
-            localStorage.setItem('token', data.token);
-            localStorage.setItem('user', JSON.stringify(data.user));
-        }
         return { success: true, ...data };
     },
 

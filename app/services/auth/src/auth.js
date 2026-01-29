@@ -48,8 +48,6 @@ app.post('/register', async (req, res) =>
       }
     console.error('Error during registration:', error);
     res.status(500).json({ error: 'Registration failed: ' + error.message });
-  } finally {
-    if (client) client.release();
   }
 });
 

@@ -3,9 +3,10 @@ import api from '../services/api.js';
 const DashboardView = {
     render: async () => {
         const user = api.getCurrentUser();
-        if (!user) {
+        const token = localStorage.getItem('token');
+        if (!user || !token) {
             window.location.hash = '/login';
-            return '';
+            return '<p>Redirecting...</p>';
         }
 
         return `
