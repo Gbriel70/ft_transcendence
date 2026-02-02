@@ -1,6 +1,10 @@
 FROM hashicorp/vault:1.15
 
-RUN apk add --no-cache openssl
+RUN apk add --no-cache \
+    openssl \
+    jq \
+    bash \
+    curl
 
 RUN mkdir -p /vault/data /vault/logs /vault/config
 

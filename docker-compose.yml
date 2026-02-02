@@ -34,7 +34,7 @@ services:
       POSTGRES_PASSWORD: admin123
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+      - ./scripts/init_db.sh:/docker-entrypoint-initdb.d/init_db.sh:ro
     ports:
       - "5432:5432"
     networks:
@@ -58,7 +58,7 @@ services:
     ports:
       - "3001:3001"
     volumes:
-      - vault_data:/vault-keys:ro
+      - vault_data:/vault-data:ro
     depends_on:
       vault:
         condition: service_healthy
@@ -80,7 +80,7 @@ services:
     ports:
       - "3002:3002"
     volumes:
-      - vault_data:/vault-keys:ro
+      - vault_data:/vault-data:ro
     depends_on:
       vault:
         condition: service_healthy
@@ -102,7 +102,7 @@ services:
     ports:
       - "3003:3003"
     volumes:
-      - vault_data:/vault-keys:ro
+      - vault_data:/vault-data:ro
     depends_on:
       vault:
         condition: service_healthy
@@ -124,7 +124,7 @@ services:
     ports:
       - "3004:3004"
     volumes:
-      - vault_data:/vault-keys:ro
+      - vault_data:/vault-data:ro
     depends_on:
       vault:
         condition: service_healthy

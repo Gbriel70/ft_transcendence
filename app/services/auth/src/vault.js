@@ -1,75 +1,168 @@
-const axios = require('axios');
+const fs = require('fs').promises;
+const path = require('path');
+
+const VAULT_ADDR = process.env.VAULT_ADDR || 'http://vault:8200';
+const VAULT_DATA_DIR = '/vault-data';
+const APPROLE_DIR = path.join(VAULT_DATA_DIR, 'approles');
 
 class VaultClient 
 {
     constructor() 
     {
-        this.vaultAddr = process.env.VAULT_ADDR || 'http://vault:8200';
-        this.vaultToken = process.env.VAULT_TOKEN;
+        this.token = null;
         this.serviceName = process.env.SERVICE_NAME || 'auth';
-        
-        if (!this.vaultToken) 
-            {
-                console.warn('VAULT_TOKEN not set. Using fallback to .env');
-            }
     }
 
-    async getSecret(path) 
+    // AUTHENTICATE USING APPROLE
+    async authenticate() 
     {
         try 
         {
-            const response = await axios.get( `${this.vaultAddr}/v1/secret/data/${path}`,
-                {
-                    headers: {
-                        'X-Vault-Token': this.vaultToken
-                    },
-                    timeout: 5000
-                }
-            );
+            console.log(`Authenticating ${this.serviceName}-service with Vault...`);
+
+            const roleIdPath = path.join(APPROLE_DIR, `${this.serviceName}_role_id`);
+            const secretIdPath = path.join(APPROLE_DIR, `${this.serviceName}_secret_id`);
+
+            console.log(`   Reading from: ${roleIdPath}`);
+
+            const roleId = await fs.readFile(roleIdPath, 'utf8');
+            const secretId = await fs.readFile(secretIdPath, 'utf8');
+
+            const response = await fetch(`${VAULT_ADDR}/v1/auth/approle/login`, 
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify
+                ({
+                    role_id: roleId.trim(),
+                    secret_id: secretId.trim()
+                })
+            });
+
+            if (!response.ok) 
+            {
+                throw new Error(`Vault auth failed: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            this.token = data.auth.client_token;
+
+            console.log(`Authenticated! Token TTL: ${data.auth.lease_duration}s`);
             
-            return response.data.data.data;
+            this.scheduleTokenRenewal(data.auth.lease_duration);
+
+            return this.token;
+
         } catch (error) 
         {
-            console.error(`Error fetching secret from Vault (${path}):`, error.message);
-            return null;
+            console.error('Vault authentication failed:', error.message);
+            throw error;
         }
     }
 
-    async getDatabaseConfig() 
+    // SCHEDULE TOKEN RENEWAL
+    scheduleTokenRenewal(ttl) 
     {
-        const dbSecrets = await this.getSecret('database');
+        const renewAt = (ttl * 0.9) * 1000;
         
-        if (!dbSecrets) 
+        setTimeout(async () => 
         {
-            console.warn('Using environment variables for database');
-            return {
-                host: process.env.DB_HOST || 'postgres',
-                port: parseInt(process.env.DB_PORT) || 5432,
-                database: process.env.DB_NAME || 'minibank',
-                user: process.env.DB_USER || 'minibank_user',
-                password: process.env.DB_PASSWORD || 'changeme'
-            };
-        }
-        
-        return {
-            host: dbSecrets.host,
-            port: parseInt(dbSecrets.port),
-            database: dbSecrets.name,
-            user: dbSecrets.user,
-            password: dbSecrets.password
-        };
+            console.log('Renewing Vault token...');
+            
+            try 
+            {
+                const response = await fetch(`${VAULT_ADDR}/v1/auth/token/renew-self`, 
+                {
+                    method: 'POST',
+                    headers: {
+                        'X-Vault-Token': this.token
+                    }
+                });
+
+                if (response.ok) 
+                {
+                    const data = await response.json();
+                    console.log(`Token renewed! New TTL: ${data.auth.lease_duration}s`);
+                    this.scheduleTokenRenewal(data.auth.lease_duration);
+                } else 
+                {
+                    console.warn('Token renewal failed, re-authenticating...');
+                    await this.authenticate();
+                }
+            } catch (error) 
+            {
+                console.error('Token renewal error:', error.message);
+                await this.authenticate();
+            }
+        }, renewAt);
     }
 
+    // READ SECRET FROM VAULT
+    async getSecret(path) 
+    {
+        if (!this.token) 
+        {
+            await this.authenticate();
+        }
+
+        try 
+        {
+            const response = await fetch(`${VAULT_ADDR}/v1/secret/data/${path}`, 
+            {
+                headers: {
+                    'X-Vault-Token': this.token
+                }
+            });
+
+            if (!response.ok) 
+            {
+                throw new Error(`Failed to read ${path}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            return data.data.data;
+
+        } catch (error) 
+        {
+            console.error(`Error reading secret '${path}':`, error.message);
+            throw error;
+        }
+    }
+
+    //SEARCH DATABASE CREDENTIALS
+    async getDatabaseCredentials() 
+    {
+        console.log('Fetching database credentials from Vault...');
+        return await this.getSecret('database');
+    }
+
+    //SEARCH SERVICE CONFIG
     async getServiceConfig() 
     {
-        const serviceSecrets = await this.getSecret(this.serviceName);
-        const jwtSecrets = await this.getSecret('jwt');
+        console.log(` Fetching ${this.serviceName} config from Vault...`);
         
+        const [dbCreds, jwtData, serviceConfig] = await Promise.all
+        ([
+            this.getDatabaseCredentials(),
+            this.getSecret('jwt'),
+            this.getSecret(this.serviceName)
+        ]);
+
         return {
-            port: serviceSecrets?.port || process.env.PORT || 3000,
-            jwtSecret: jwtSecrets?.secret || process.env.JWT_SECRET,
-            jwtExpiresIn: jwtSecrets?.expires_in || 86400,
-            bcryptRounds: serviceSecrets?.bcrypt_rounds || 10
+            database: {
+                host: dbCreds.host,
+                port: parseInt(dbCreds.port),
+                name: dbCreds.name,
+                user: dbCreds.user,
+                password: dbCreds.password
+            },
+            jwt: {
+                secret: jwtData.secret,
+                expiresIn: jwtData.expires_in || '24h',
+                algorithm: jwtData.algorithm || 'HS256'
+            },
+            port: parseInt(serviceConfig.port),
+            bcryptRounds: parseInt(serviceConfig.bcrypt_rounds) || 12
         };
     }
 }
