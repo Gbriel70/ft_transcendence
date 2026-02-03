@@ -43,6 +43,11 @@ const RegisterView = {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
 
+            if (password !== confirmPassword) {
+                alert('Passwords do not match.');
+                return;
+            }
+
             try {
                 const result = await api.register(username, email, password);
                 if (result.success) {
