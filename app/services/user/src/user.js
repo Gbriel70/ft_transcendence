@@ -6,15 +6,6 @@ const PORT = process.env.SERVICE_PORT || 3002;
 
 app.use(express.json());
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    service: 'user',
-    timestamp: new Date().toISOString()
-  });
-});
-
 // Get profile
 app.get('/profile/:id', async (req, res) => {
   const userId = req.params.id;

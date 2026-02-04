@@ -6,15 +6,6 @@ const PORT = process.env.SERVICE_PORT || 3003;
 
 app.use(express.json());
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    service: 'transition',
-    timestamp: new Date().toISOString()
-  });
-});
-
 // Get transactions
 app.get('/transactions', (req, res) => {
   res.json({ message: 'Get transactions endpoint' });

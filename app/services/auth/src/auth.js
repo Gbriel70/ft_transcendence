@@ -9,17 +9,6 @@ app.use(express.json());
 
 let config;
 
-// Health Check
-app.get('/health', (req, res) => 
-{
-  res.json
-  ({ 
-    status: 'ok',
-    service: 'auth',
-    timestamp: new Date().toISOString()
-  });
-});
-
 // Register
 app.post('/register', async (req, res) => 
 {

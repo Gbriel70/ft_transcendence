@@ -1,21 +1,25 @@
 #!/bin/sh
-
 set -e
 
+echo "NGINX Entrypoint"
+
 # ===== GERAR CERTIFICADO SSL =====
-if [ ! -f /etc/nginx/certs/nginx-selfsigned.crt ]; then
-    echo " Generating SSL certificate..."
+if [ ! -f /etc/nginx/certs/minibank.crt ]; then
+    echo "Generating SSL certificate..."
     openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-        -keyout /etc/nginx/certs/nginx-selfsigned.key \
-        -out /etc/nginx/certs/nginx-selfsigned.crt \
+        -keyout /etc/nginx/certs/minibank.key \
+        -out /etc/nginx/certs/minibank.crt \
         -subj "/C=BR/ST=SP/L=SP/O=MiniBank/CN=localhost" 2>/dev/null
     
-    chmod 600 /etc/nginx/certs/nginx-selfsigned.key
-    chmod 644 /etc/nginx/certs/nginx-selfsigned.crt
-    echo " SSL certificate created"
+    chmod 600 /etc/nginx/certs/minibank.key
+    chmod 644 /etc/nginx/certs/minibank.crt
+    echo "SSL certificate created"
+else
+    echo "SSL certificate already exists"
 fi
 
 # ===== VERIFICAR MODSECURITY =====
+echo ""
 echo "ModSecurity Status:"
 if [ -f /etc/modsecurity.d/modsecurity.conf ]; then
     grep "SecRuleEngine" /etc/modsecurity.d/modsecurity.conf | head -1 || true
@@ -36,8 +40,10 @@ if [ -d /etc/modsecurity.d/user-conf ]; then
     echo "Custom rules loaded: $CUSTOM_COUNT files"
 fi
 
+echo ""
 echo "Testing NGINX configuration..."
 nginx -t
 
-echo " Starting NGINX..."
-exec nginx -g 'daemon off;'
+echo ""
+echo "Starting NGINX..."
+exec "$@"

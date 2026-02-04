@@ -5,8 +5,6 @@ services:
       context: ./app/vault
       dockerfile: dockerfile
     container_name: vault
-    ports:
-      - "8200:8200"
     volumes:
       - vault_data:/vault/data
       - vault_logs:/vault/logs
@@ -35,8 +33,6 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init_db.sh:/docker-entrypoint-initdb.d/init_db.sh:ro
-    ports:
-      - "5432:5432"
     networks:
       - minibank-network
     healthcheck:
@@ -55,8 +51,6 @@ services:
     environment:
       VAULT_ADDR: http://vault:8200
       SERVICE_NAME: auth
-    ports:
-      - "3001:3001"
     volumes:
       - vault_data:/vault-data:ro
     depends_on:
@@ -77,8 +71,6 @@ services:
     environment:
       VAULT_ADDR: http://vault:8200
       SERVICE_NAME: user
-    ports:
-      - "3002:3002"
     volumes:
       - vault_data:/vault-data:ro
     depends_on:
@@ -99,8 +91,6 @@ services:
     environment:
       VAULT_ADDR: http://vault:8200
       SERVICE_NAME: transition
-    ports:
-      - "3003:3003"
     volumes:
       - vault_data:/vault-data:ro
     depends_on:
@@ -121,8 +111,6 @@ services:
     environment:
       VAULT_ADDR: http://vault:8200
       SERVICE_NAME: blockchain
-    ports:
-      - "3004:3004"
     volumes:
       - vault_data:/vault-data:ro
     depends_on:
@@ -134,25 +122,11 @@ services:
       - minibank-network
     restart: unless-stopped
 
-  # ==================== FRONTEND ====================
-  frontend:
-    build:
-      context: ./app/frontend
-      dockerfile: dockerfile
-    container_name: minibank_frontend
-    environment:
-      VITE_API_URL: http://localhost/api
-    ports:
-      - "5173:80"
-    networks:
-      - minibank-network
-    restart: unless-stopped
-
   # ==================== NGINX WAF====================
   nginx:
     build:
-      context: ./app/nginx
-      dockerfile: dockerfile
+      context: ./app
+      dockerfile: nginx/dockerfile
     container_name: nginx
     ports:
       - "8080:80"
@@ -160,7 +134,6 @@ services:
     volumes:
       - nginx_certs:/etc/nginx/certs
     depends_on:
-      - frontend
       - auth_service
       - user_service
       - transition_service
