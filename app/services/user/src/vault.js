@@ -1,36 +1,170 @@
-const fs = require('fs');
-const vault = require('node-vault');
+const fs = require('fs').promises;
+const path = require('path');
 
-const readFile = (filePath) => fs.readFileSync(filePath, 'utf8').trim();
+const VAULT_ADDR = process.env.VAULT_ADDR || 'http://vault:8200';
+const VAULT_DATA_DIR = '/vault-data';
+const APPROLE_DIR = path.join(VAULT_DATA_DIR, 'approles');
 
-let client;
-
-async function getClient()
+class VaultClient 
 {
-  if (client) return client;
+    constructor() 
+    {
+        this.token = null;
+        this.serviceName = process.env.SERVICE_NAME || 'user';
+    }
 
-  const roleId = readFile(process.env.VAULT_ROLE_ID_FILE);
-  const secretId = readFile(process.env.VAULT_SECRET_ID_FILE);
+    // AUTHENTICATE USING APPROLE
+    async authenticate() 
+    {
+        try 
+        {
+            console.log(`Authenticating ${this.serviceName}-service with Vault...`);
 
-  client = vault({ endpoint: process.env.VAULT_ADDR });
-  const res = await client.approleLogin({ role_id: roleId, secret_id: secretId });
-  client.token = res.auth.client_token;
+            const roleIdPath = path.join(APPROLE_DIR, `${this.serviceName}_role_id`);
+            const secretIdPath = path.join(APPROLE_DIR, `${this.serviceName}_secret_id`);
 
-  return client;
+            console.log(`   Reading from: ${roleIdPath}`);
+
+            const roleId = await fs.readFile(roleIdPath, 'utf8');
+            const secretId = await fs.readFile(secretIdPath, 'utf8');
+
+            const response = await fetch(`${VAULT_ADDR}/v1/auth/approle/login`, 
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify
+                ({
+                    role_id: roleId.trim(),
+                    secret_id: secretId.trim()
+                })
+            });
+
+            if (!response.ok) 
+            {
+                throw new Error(`Vault auth failed: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            this.token = data.auth.client_token;
+
+            console.log(`Authenticated! Token TTL: ${data.auth.lease_duration}s`);
+            
+            this.scheduleTokenRenewal(data.auth.lease_duration);
+
+            return this.token;
+
+        } catch (error) 
+        {
+            console.error('Vault authentication failed:', error.message);
+            throw error;
+        }
+    }
+
+    // SCHEDULE TOKEN RENEWAL
+    scheduleTokenRenewal(ttl) 
+    {
+        const renewAt = (ttl * 0.9) * 1000;
+        
+        setTimeout(async () => 
+        {
+            console.log('Renewing Vault token...');
+            
+            try 
+            {
+                const response = await fetch(`${VAULT_ADDR}/v1/auth/token/renew-self`, 
+                {
+                    method: 'POST',
+                    headers: {
+                        'X-Vault-Token': this.token
+                    }
+                });
+
+                if (response.ok) 
+                {
+                    const data = await response.json();
+                    console.log(`Token renewed! New TTL: ${data.auth.lease_duration}s`);
+                    this.scheduleTokenRenewal(data.auth.lease_duration);
+                } else 
+                {
+                    console.warn('Token renewal failed, re-authenticating...');
+                    await this.authenticate();
+                }
+            } catch (error) 
+            {
+                console.error('Token renewal error:', error.message);
+                await this.authenticate();
+            }
+        }, renewAt);
+    }
+
+    // READ SECRET FROM VAULT
+    async getSecret(path) 
+    {
+        if (!this.token) 
+        {
+            await this.authenticate();
+        }
+
+        try 
+        {
+            const response = await fetch(`${VAULT_ADDR}/v1/secret/data/${path}`, 
+            {
+                headers: {
+                    'X-Vault-Token': this.token
+                }
+            });
+
+            if (!response.ok) 
+            {
+                throw new Error(`Failed to read ${path}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            return data.data.data;
+
+        } catch (error) 
+        {
+            console.error(`Error reading secret '${path}':`, error.message);
+            throw error;
+        }
+    }
+
+    //SEARCH DATABASE CREDENTIALS
+    async getDatabaseCredentials() 
+    {
+        console.log('Fetching database credentials from Vault...');
+        return await this.getSecret('database');
+    }
+
+    //SEARCH SERVICE CONFIG
+    async getServiceConfig() 
+    {
+        console.log(` Fetching ${this.serviceName} config from Vault...`);
+        
+        const [dbCreds, jwtData, serviceConfig] = await Promise.all
+        ([
+            this.getDatabaseCredentials(),
+            this.getSecret('jwt'),
+            this.getSecret(this.serviceName)
+        ]);
+
+        return {
+            database: {
+                host: dbCreds.host,
+                port: parseInt(dbCreds.port),
+                name: dbCreds.name,
+                user: dbCreds.user,
+                password: dbCreds.password
+            },
+            jwt: {
+                secret: jwtData.secret,
+                expiresIn: jwtData.expires_in || '24h',
+                algorithm: jwtData.algorithm || 'HS256'
+            },
+            port: parseInt(serviceConfig.port),
+            bcryptRounds: parseInt(serviceConfig.bcrypt_rounds) || 12
+        };
+    }
 }
 
-async function getSecret(key)
-{
-  const c = await getClient();
-  const path = process.env.VAULT_KV_PATH;
-  const res = await c.read(path);
-  return res.data.data[key];
-}
-
-async function initVault()
-{
-  process.env.DB_USER = process.env.DB_USER || (await getSecret('db_user'));
-  process.env.DB_PASSWORD = process.env.DB_PASSWORD || (await getSecret('db_password'));
-}
-
-module.exports = { initVault, getSecret };
+module.exports = new VaultClient();

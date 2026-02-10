@@ -62,28 +62,15 @@ async function initDatabase()
     const pool = await getPool();
 
     const schema = `
-        CREATE TABLE IF NOT EXISTS users (
+        CREATE TABLE IF NOT EXISTS user_auth (
             id SERIAL PRIMARY KEY,
             email VARCHAR(255) UNIQUE NOT NULL,
             password_hash VARCHAR(255) NOT NULL,
             name VARCHAR(255) NOT NULL,
-            balance DECIMAL(10, 2) DEFAULT 0.00,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
-        CREATE TABLE IF NOT EXISTS transactions (
-            id SERIAL PRIMARY KEY,
-            from_user_id INTEGER REFERENCES users(id),
-            to_user_id INTEGER REFERENCES users(id),
-            amount DECIMAL(10, 2) NOT NULL,
-            description TEXT,
-            status VARCHAR(50) DEFAULT 'pending',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-        CREATE INDEX IF NOT EXISTS idx_transactions_from ON transactions(from_user_id);
-        CREATE INDEX IF NOT EXISTS idx_transactions_to ON transactions(to_user_id);
+        CREATE INDEX IF NOT EXISTS idx_user_auth_email ON user_auth(email);
     `;
 
     try 

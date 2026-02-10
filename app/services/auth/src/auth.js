@@ -9,6 +9,37 @@ app.use(express.json());
 
 let config;
 
+// Helper function to create user profile in User Service after registration
+async function createUserProfile(authUserId, username)
+{
+  const userServiceUrl = process.env.USSER_SERVICE_URL || 'http://user_service:3002';
+
+  try
+  {
+    const response = await fetch(`${userServiceUrl}/users`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify
+      ({ 
+        auth_user_id: authUserId,
+         username: username 
+      })
+    });
+
+    if (!response.ok)
+    {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to create user profile');
+    }
+    return await response.json();
+  }catch (error)
+  {
+    console.error('Error creating user profile:', error.message);
+    throw error;
+  }
+}
+
 // Register
 app.post('/register', async (req, res) => 
 {
@@ -26,16 +57,49 @@ app.post('/register', async (req, res) =>
     // USE BCRYPT CONFIG FROM VAULT
     const hashedPassword = await bcrypt.hash(password, config.bcryptRounds);
 
+    // CREATE AUTH USER
     const result = await pool.query
     (
-      'INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id, email, name',
+      'INSERT INTO user_auth (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id, email, name',
       [email, hashedPassword, name]
     );
+
+    const user = result.rows[0];
+    
+    // CALL USER SERVICE TO CREATE PROFILE
+    try
+    {
+      await createUserProfile(user.id, name);
+    } catch (error) {
+      // ROLLBACK AUTH USER IF PROFILE CREATION FAILS
+      await pool.query('DELETE FROM user_auth WHERE id = $1', [user.id]);
+      throw new Error('Failed to create user profile');
+    }
+
+    // GENERATE JWT TOKEN
+    const token = jwt.sign
+    (
+      {
+        id: user.id,
+        email: user.email,
+      },
+      config.jwt.secret,
+      { 
+        expiresIn: config.jwt.expiresIn,
+        algorithm: config.jwt.algorithm
+      }
+    )
 
     res.status(201).json
     ({
       message: 'User registered successfully',
-      user: result.rows[0]
+      token,
+      user: 
+      {
+        id: user.id,
+        email: user.email,
+        username: user.name
+      }
     });
   } catch (error) 
   {
@@ -61,7 +125,7 @@ app.post('/login', async (req, res) =>
     }
 
     const pool = await getPool();
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const result = await pool.query('SELECT * FROM user_auth WHERE email = $1', [email]);
 
     if (result.rows.length === 0) 
     {
@@ -94,11 +158,10 @@ app.post('/login', async (req, res) =>
     ({
       message: 'Login successful',
       token,
-      user: {
+      user: 
+      {
         id: user.id,
         email: user.email,
-        name: user.name,
-        balance: user.balance
       }
     });
   } catch (error) 
