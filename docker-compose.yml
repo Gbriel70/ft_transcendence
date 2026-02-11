@@ -51,8 +51,9 @@ services:
     environment:
       VAULT_ADDR: http://vault:8200
       SERVICE_NAME: auth
+      USER_SERVICE_URL: http://user_service:3002
     volumes:
-      - vault_data:/vault-data:ro
+      - vault_data:/vault-keys:ro
     depends_on:
       vault:
         condition: service_healthy
@@ -72,7 +73,7 @@ services:
       VAULT_ADDR: http://vault:8200
       SERVICE_NAME: user
     volumes:
-      - vault_data:/vault-data:ro
+      - vault_data:/vault-keys:ro
     depends_on:
       vault:
         condition: service_healthy
@@ -92,7 +93,7 @@ services:
       VAULT_ADDR: http://vault:8200
       SERVICE_NAME: transition
     volumes:
-      - vault_data:/vault-data:ro
+      - vault_data:/vault-keys:ro
     depends_on:
       vault:
         condition: service_healthy
@@ -112,7 +113,7 @@ services:
       VAULT_ADDR: http://vault:8200
       SERVICE_NAME: blockchain
     volumes:
-      - vault_data:/vault-data:ro
+      - vault_data:/vault-keys:ro
     depends_on:
       vault:
         condition: service_healthy

@@ -2,10 +2,14 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-RUN npm install express node-vault
+COPY package*.json ./
 
-COPY src ./src
+RUN npm install --production
+
+COPY . .
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 3002
 
-CMD ["node", "src/user.js"]
+CMD ["/app/entrypoint.sh"]

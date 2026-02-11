@@ -215,6 +215,88 @@ app.get('/users/:id/balance', async (req, res) =>
   }
 });
 
+// PUT /users/me - Update current user profile (name and profile picture)
+app.put('/users/me', authenticateToken, async (req, res) => 
+{
+  try 
+  {
+    const authUserId = req.user.id;
+    const { name, profile_picture } = req.body;
+
+    console.log('PUT /users/me - authUserId:', authUserId);
+    console.log('PUT /users/me - body:', { name, profile_picture });
+
+    if (!name && !profile_picture) 
+    {
+      return res.status(400).json({ error: 'At least one field (name or profile_picture) must be provided' });
+    }
+
+    const pool = await getPool();
+    
+    // Remover updated_at da query
+    let updateQuery = 'UPDATE user_profiles SET';
+    const values = [];
+    let paramIndex = 1;
+    const updates = [];
+
+    if (name) 
+    {
+      updates.push(` name = $${paramIndex}`);
+      values.push(name);
+      paramIndex++;
+    }
+
+    if (profile_picture) 
+    {
+      updates.push(` profile_picture = $${paramIndex}`);
+      values.push(profile_picture);
+      paramIndex++;
+    }
+
+    updateQuery += updates.join(',');
+    updateQuery += ` WHERE auth_user_id = $${paramIndex} RETURNING *`;
+    values.push(authUserId);
+
+    console.log('Executing query:', updateQuery);
+    console.log('With values:', values);
+
+    const result = await pool.query(updateQuery, values);
+
+    if (result.rows.length === 0) 
+    {
+      return res.status(404).json({ error: 'User profile not found' });
+    }
+
+    res.json
+    ({
+      message: 'Profile updated successfully',
+      profile: result.rows[0]
+    });
+  } catch (error) 
+  {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
+// DELETE /users/me - Delete user account
+app.delete('/users/me', authenticateToken, async (req, res) => 
+{
+  try 
+  {
+    const authUserId = req.user.id;
+    
+    const pool = await getPool();
+    await pool.query('DELETE FROM user_profiles WHERE auth_user_id = $1', [authUserId]);
+
+    res.json({ message: 'User profile deleted successfully' });
+  } catch (error) 
+  {
+    console.error('Error deleting profile:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Bootstrap
 async function bootstrap() 
 {

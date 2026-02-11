@@ -64,10 +64,12 @@ async function initDatabase()
     const schema = `
         CREATE TABLE IF NOT EXISTS user_profiles (
             id SERIAL PRIMARY KEY,
-            auth_user_id INTEGER REFERENCES user_auth(id),
-            name VARCHAR(255) REFERENCES user_auth(name),
+            auth_user_id INTEGER REFERENCES user_auth(id) ON DELETE CASCADE,
+            name VARCHAR(255) NOT NULL,
+            profile_picture VARCHAR(500),
             wallet_address VARCHAR(255) UNIQUE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE INDEX IF NOT EXISTS idx_user_profiles_auth_user_id ON user_profiles(auth_user_id);

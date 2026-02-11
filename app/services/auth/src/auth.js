@@ -12,7 +12,7 @@ let config;
 // Helper function to create user profile in User Service after registration
 async function createUserProfile(authUserId, username)
 {
-  const userServiceUrl = process.env.USSER_SERVICE_URL || 'http://user_service:3002';
+  const userServiceUrl = process.env.USER_SERVICE_URL || 'http://user_service:3002';
 
   try
   {
@@ -23,7 +23,7 @@ async function createUserProfile(authUserId, username)
       body: JSON.stringify
       ({ 
         auth_user_id: authUserId,
-         username: username 
+        name: username 
       })
     });
 
@@ -167,6 +167,105 @@ app.post('/login', async (req, res) =>
   } catch (error) 
   {
     console.error('Error during login:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /change-email - Change user email
+app.put('/change-email', async (req, res) => 
+{
+  try 
+  {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) 
+    {
+      return res.status(401).json({ error: 'Access token required' });
+    }
+
+    const decoded = jwt.verify(token, config.jwt.secret);
+    const { newEmail } = req.body;
+
+    if (!newEmail) 
+    {
+      return res.status(400).json({ error: 'New email is required' });
+    }
+
+    const pool = await getPool();
+    
+    // Check if new email already exists
+    const checkResult = await pool.query('SELECT id FROM user_auth WHERE email = $1', [newEmail]);
+    if (checkResult.rows.length > 0) 
+    {
+      return res.status(409).json({ error: 'Email already in use' });
+    }
+
+    await pool.query('UPDATE user_auth SET email = $1 WHERE id = $2', [newEmail, decoded.id]);
+
+    res.json({ message: 'Email updated successfully' });
+  } catch (error) 
+  {
+    if (error.name === 'JsonWebTokenError') 
+    {
+      return res.status(403).json({ error: 'Invalid token' });
+    }
+    console.error('Error updating email:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /change-password - Change user password
+app.put('/change-password', async (req, res) => 
+{
+  try 
+  {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) 
+    {
+      return res.status(401).json({ error: 'Access token required' });
+    }
+
+    const decoded = jwt.verify(token, config.jwt.secret);
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) 
+    {
+      return res.status(400).json({ error: 'Current password and new password are required' });
+    }
+
+    if (newPassword.length < 6) 
+    {
+      return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    }
+
+    const pool = await getPool();
+    const result = await pool.query('SELECT password_hash FROM user_auth WHERE id = $1', [decoded.id]);
+
+    if (result.rows.length === 0) 
+    {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const validPassword = await bcrypt.compare(currentPassword, result.rows[0].password_hash);
+    if (!validPassword) 
+    {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, config.bcryptRounds);
+    await pool.query('UPDATE user_auth SET password_hash = $1 WHERE id = $2', [hashedPassword, decoded.id]);
+
+    res.json({ message: 'Password updated successfully' });
+  } catch (error) 
+  {
+    if (error.name === 'JsonWebTokenError') 
+    {
+      return res.status(403).json({ error: 'Invalid token' });
+    }
+    console.error('Error updating password:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

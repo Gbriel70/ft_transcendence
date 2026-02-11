@@ -175,7 +175,7 @@ DB_PASSWORD=$(openssl rand -base64 32 | tr -d '\n')
 vault kv put secret/database host=postgres port=5432 name=minibank_db user=admin password=admin123 >/dev/null 2>&1
 
 JWT_SECRET=$(openssl rand -base64 64 | tr -d '\n')
-vault kv put secret/jwt secret="$JWT_SECRET" expires_in=86400 algorithm=HS256 >/dev/null 2>&1
+vault kv put secret/jwt secret="$JWT_SECRET" expires_in=1h algorithm=HS256 >/dev/null 2>&1
 
 vault kv put secret/auth port=3001 bcrypt_rounds=12 >/dev/null 2>&1
 vault kv put secret/user port=3002 >/dev/null 2>&1

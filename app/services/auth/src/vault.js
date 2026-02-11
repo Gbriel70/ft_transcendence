@@ -2,7 +2,7 @@ const fs = require('fs').promises;
 const path = require('path');
 
 const VAULT_ADDR = process.env.VAULT_ADDR || 'http://vault:8200';
-const VAULT_DATA_DIR = '/vault-data';
+const VAULT_DATA_DIR = '/vault-keys';
 const APPROLE_DIR = path.join(VAULT_DATA_DIR, 'approles');
 
 class VaultClient 
