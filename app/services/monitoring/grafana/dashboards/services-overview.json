@@ -1,0 +1,59 @@
+{
+  "title": "Services Overview",
+  "uid": "services-overview",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Requests / sec",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total[1m])) by (service)",
+          "legendFormat": "{{service}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "5xx Error Rate (%)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "(sum(rate(http_requests_total{status_code=~\"5..\"}[5m])) by (service) / sum(rate(http_requests_total[5m])) by (service)) * 100",
+          "legendFormat": "{{service}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percent" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "P95 Latency (s)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service))",
+          "legendFormat": "{{service}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

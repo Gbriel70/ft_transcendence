@@ -26,3 +26,23 @@ scrape_configs:
   - job_name: "nginx"
     static_configs:
       - targets: ["nginx_exporter:9113"]
+
+  - job_name: "auth_service"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["auth_service:3001"]
+
+  - job_name: "user_service"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["user_service:3002"]
+
+  - job_name: "transition_service"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["transition_service:3003"]
+
+  - job_name: "blockchain_service"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["blockchain_service:3004"]

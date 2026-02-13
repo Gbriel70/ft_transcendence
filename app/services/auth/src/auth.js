@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const client = require('prom-client');
 const { getPool, initDatabase } = require('./db');
 const vaultClient = require('./vault');
 
@@ -8,6 +9,51 @@ const app = express();
 app.use(express.json());
 
 let config;
+
+const register = client.register;
+register.setDefaultLabels({ service: process.env.SERVICE_NAME || 'auth' });
+client.collectDefaultMetrics({ register });
+
+const httpRequestDuration = new client.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'HTTP request duration in seconds',
+  labelNames: ['method', 'route', 'status_code'],
+  buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
+});
+
+const httpRequestsTotal = new client.Counter({
+  name: 'http_requests_total',
+  help: 'Total HTTP requests',
+  labelNames: ['method', 'route', 'status_code']
+});
+
+app.use((req, res, next) => {
+  if (req.path === '/metrics')
+  {
+    return next();
+  }
+
+  const endTimer = httpRequestDuration.startTimer();
+
+  res.on('finish', () => {
+    const route = req.route && req.route.path ? `${req.baseUrl || ''}${req.route.path}` : req.path;
+    const labels = {
+      method: req.method,
+      route,
+      status_code: res.statusCode
+    };
+
+    httpRequestsTotal.inc(labels);
+    endTimer(labels);
+  });
+
+  next();
+});
+
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', register.contentType);
+  res.send(await register.metrics());
+});
 
 // Helper function to create user profile in User Service after registration
 async function createUserProfile(authUserId, username)
@@ -21,9 +67,9 @@ async function createUserProfile(authUserId, username)
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify
-      ({ 
+      ({
         auth_user_id: authUserId,
-        name: username 
+        name: username
       })
     });
 
@@ -41,9 +87,9 @@ async function createUserProfile(authUserId, username)
 }
 
 // Register
-app.post('/register', async (req, res) => 
+app.post('/register', async (req, res) =>
 {
-  try 
+  try
   {
     const { email, password, name } = req.body;
 
@@ -53,7 +99,7 @@ app.post('/register', async (req, res) =>
     }
 
     const pool = await getPool();
-    
+
     // USE BCRYPT CONFIG FROM VAULT
     const hashedPassword = await bcrypt.hash(password, config.bcryptRounds);
 
@@ -65,7 +111,7 @@ app.post('/register', async (req, res) =>
     );
 
     const user = result.rows[0];
-    
+
     // CALL USER SERVICE TO CREATE PROFILE
     try
     {
@@ -84,7 +130,7 @@ app.post('/register', async (req, res) =>
         email: user.email,
       },
       config.jwt.secret,
-      { 
+      {
         expiresIn: config.jwt.expiresIn,
         algorithm: config.jwt.algorithm
       }
@@ -94,16 +140,16 @@ app.post('/register', async (req, res) =>
     ({
       message: 'User registered successfully',
       token,
-      user: 
+      user:
       {
         id: user.id,
         email: user.email,
         username: user.name
       }
     });
-  } catch (error) 
+  } catch (error)
   {
-    if (error.code === '23505') 
+    if (error.code === '23505')
     {
       return res.status(409).json({ error: 'Email already in use' });
     }
@@ -113,13 +159,13 @@ app.post('/register', async (req, res) =>
 });
 
 // Login
-app.post('/login', async (req, res) => 
+app.post('/login', async (req, res) =>
 {
-  try 
+  try
   {
     const { email, password } = req.body;
 
-    if (!email || !password) 
+    if (!email || !password)
     {
       return res.status(400).json({ error: 'Missing email or password' });
     }
@@ -127,7 +173,7 @@ app.post('/login', async (req, res) =>
     const pool = await getPool();
     const result = await pool.query('SELECT * FROM user_auth WHERE email = $1', [email]);
 
-    if (result.rows.length === 0) 
+    if (result.rows.length === 0)
     {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -135,7 +181,7 @@ app.post('/login', async (req, res) =>
     const user = result.rows[0];
     const validPassword = await bcrypt.compare(password, user.password_hash);
 
-    if (!validPassword) 
+    if (!validPassword)
     {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -148,7 +194,7 @@ app.post('/login', async (req, res) =>
         email: user.email,
       },
       config.jwt.secret,
-      { 
+      {
         expiresIn: config.jwt.expiresIn,
         algorithm: config.jwt.algorithm
       }
@@ -158,13 +204,13 @@ app.post('/login', async (req, res) =>
     ({
       message: 'Login successful',
       token,
-      user: 
+      user:
       {
         id: user.id,
         email: user.email,
       }
     });
-  } catch (error) 
+  } catch (error)
   {
     console.error('Error during login:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -172,14 +218,14 @@ app.post('/login', async (req, res) =>
 });
 
 // PUT /change-email - Change user email
-app.put('/change-email', async (req, res) => 
+app.put('/change-email', async (req, res) =>
 {
-  try 
+  try
   {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
-    if (!token) 
+    if (!token)
     {
       return res.status(401).json({ error: 'Access token required' });
     }
@@ -187,16 +233,16 @@ app.put('/change-email', async (req, res) =>
     const decoded = jwt.verify(token, config.jwt.secret);
     const { newEmail } = req.body;
 
-    if (!newEmail) 
+    if (!newEmail)
     {
       return res.status(400).json({ error: 'New email is required' });
     }
 
     const pool = await getPool();
-    
+
     // Check if new email already exists
     const checkResult = await pool.query('SELECT id FROM user_auth WHERE email = $1', [newEmail]);
-    if (checkResult.rows.length > 0) 
+    if (checkResult.rows.length > 0)
     {
       return res.status(409).json({ error: 'Email already in use' });
     }
@@ -204,9 +250,9 @@ app.put('/change-email', async (req, res) =>
     await pool.query('UPDATE user_auth SET email = $1 WHERE id = $2', [newEmail, decoded.id]);
 
     res.json({ message: 'Email updated successfully' });
-  } catch (error) 
+  } catch (error)
   {
-    if (error.name === 'JsonWebTokenError') 
+    if (error.name === 'JsonWebTokenError')
     {
       return res.status(403).json({ error: 'Invalid token' });
     }
@@ -216,14 +262,14 @@ app.put('/change-email', async (req, res) =>
 });
 
 // PUT /change-password - Change user password
-app.put('/change-password', async (req, res) => 
+app.put('/change-password', async (req, res) =>
 {
-  try 
+  try
   {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
-    if (!token) 
+    if (!token)
     {
       return res.status(401).json({ error: 'Access token required' });
     }
@@ -231,12 +277,12 @@ app.put('/change-password', async (req, res) =>
     const decoded = jwt.verify(token, config.jwt.secret);
     const { currentPassword, newPassword } = req.body;
 
-    if (!currentPassword || !newPassword) 
+    if (!currentPassword || !newPassword)
     {
       return res.status(400).json({ error: 'Current password and new password are required' });
     }
 
-    if (newPassword.length < 6) 
+    if (newPassword.length < 6)
     {
       return res.status(400).json({ error: 'New password must be at least 6 characters' });
     }
@@ -244,13 +290,13 @@ app.put('/change-password', async (req, res) =>
     const pool = await getPool();
     const result = await pool.query('SELECT password_hash FROM user_auth WHERE id = $1', [decoded.id]);
 
-    if (result.rows.length === 0) 
+    if (result.rows.length === 0)
     {
       return res.status(404).json({ error: 'User not found' });
     }
 
     const validPassword = await bcrypt.compare(currentPassword, result.rows[0].password_hash);
-    if (!validPassword) 
+    if (!validPassword)
     {
       return res.status(401).json({ error: 'Current password is incorrect' });
     }
@@ -259,9 +305,9 @@ app.put('/change-password', async (req, res) =>
     await pool.query('UPDATE user_auth SET password_hash = $1 WHERE id = $2', [hashedPassword, decoded.id]);
 
     res.json({ message: 'Password updated successfully' });
-  } catch (error) 
+  } catch (error)
   {
-    if (error.name === 'JsonWebTokenError') 
+    if (error.name === 'JsonWebTokenError')
     {
       return res.status(403).json({ error: 'Invalid token' });
     }
@@ -274,26 +320,26 @@ app.put('/change-password', async (req, res) =>
 async function bootstrap() {
   try {
     console.log('Starting Auth Service...');
-    
+
     // LOAD CONFIG FROM VAULT
     config = await vaultClient.getServiceConfig();
-    
+
     console.log('Configuration loaded:');
     console.log(`   - Database: ${config.database.host}:${config.database.port}/${config.database.name}`);
     console.log(`   - JWT Algorithm: ${config.jwt.algorithm}`);
     console.log(`   - JWT Expires: ${config.jwt.expiresIn}`);
     console.log(`   - Bcrypt Rounds: ${config.bcryptRounds}`);
-    
+
     // Initialize database
     await initDatabase();
-    
+
     // Start server
     const PORT = config.port;
-    app.listen(PORT, () => 
+    app.listen(PORT, () =>
     {
       console.log(`Auth service ready on port ${PORT}`);
     });
-  } catch (error) 
+  } catch (error)
   {
     console.error('Failed to start auth service:', error);
     process.exit(1);

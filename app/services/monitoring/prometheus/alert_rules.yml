@@ -27,3 +27,29 @@ groups:
         annotations:
           summary: "High memory usage"
           description: "Memory usage is above 90% on {{ $labels.instance }}."
+
+  - name: application
+    rules:
+      - alert: HighServiceErrorRate
+        expr: |
+          (sum by(service) (rate(http_requests_total{status_code=~"5.."}[5m]))
+          /
+          sum by(service) (rate(http_requests_total[5m]))) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High 5xx error rate"
+          description: "Service {{ $labels.service }} has > 5% 5xx errors."
+
+      - alert: HighServiceLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum by(le, service) (rate(http_request_duration_seconds_bucket[5m]))
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High p95 latency"
+          description: "Service {{ $labels.service }} p95 latency is above 0.5s."
