@@ -82,6 +82,46 @@ const api = {
     getCurrentUser: () => {
         const userStr = localStorage.getItem('user');
         return userStr ? JSON.parse(userStr) : null;
+    },
+
+    updateProfile: async (name, profilePicture) => {
+        const response = await fetch(`${API_BASE}/users/me`, {
+            method: 'PUT',
+            headers: getHeaders(),
+            body: JSON.stringify({ name, profile_picture: profilePicture })
+        });
+        const data = await handleResponse(response);
+        if (data && data.profile) {
+            const currentUser = api.getCurrentUser() || {};
+            currentUser.name = data.profile.name;
+            currentUser.profile_picture = data.profile.profile_picture;
+            localStorage.setItem('user', JSON.stringify(currentUser));
+        }
+        return data;
+    },
+
+    changeEmail: async (newEmail) => {
+        const response = await fetch(`${API_BASE}/auth/change-email`, {
+            method: 'PUT',
+            headers: getHeaders(),
+            body: JSON.stringify({ newEmail })
+        });
+        const data = await handleResponse(response);
+        if (data && data.message === 'Email updated successfully') {
+            const currentUser = api.getCurrentUser() || {};
+            currentUser.email = newEmail;
+            localStorage.setItem('user', JSON.stringify(currentUser));
+        }
+        return data;
+    },
+
+    changePassword: async (currentPassword, newPassword) => {
+        const response = await fetch(`${API_BASE}/auth/change-password`, {
+            method: 'PUT',
+            headers: getHeaders(),
+            body: JSON.stringify({ currentPassword, newPassword })
+        });
+        return handleResponse(response);
     }
 };
 

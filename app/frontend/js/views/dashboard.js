@@ -18,6 +18,9 @@ const DashboardView = {
                     </button>
                     <div class="collapse navbar-collapse" id="navbarNav">
                         <ul class="navbar-nav ms-auto">
+                            <li class="nav-item me-2">
+                                <a class="nav-link" href="#/profile">Profile</a>
+                            </li>
                             <li class="nav-item">
                                 <button id="logout-btn" class="btn btn-outline-light">Logout</button>
                             </li>
