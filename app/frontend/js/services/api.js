@@ -58,7 +58,7 @@ const api = {
     },
 
     transfer: async (recipientEmail, amount) => {
-        const response = await fetch(`${API_BASE}/transition/transactions`, {
+        const response = await fetch(`${API_BASE}/transaction/transactions`, {
             method: 'POST',
             headers: getHeaders(),
             body: JSON.stringify({ recipientEmail, amount })
@@ -67,7 +67,7 @@ const api = {
     },
 
     getTransactions: async () => {
-        const response = await fetch(`${API_BASE}/transition/transactions`, {
+        const response = await fetch(`${API_BASE}/transaction/transactions`, {
             headers: getHeaders()
         });
         return handleResponse(response);
@@ -85,10 +85,23 @@ const api = {
     },
 
     updateProfile: async (name, profilePicture) => {
+        let body;
+        let headers = getHeaders();
+
+        if (profilePicture instanceof File) {
+            body = new FormData();
+            if (name) body.append('name', name);
+            body.append('profile_picture', profilePicture);
+            // Browser sets the correct multipart/form-data boundary automatically when body is FormData
+            delete headers['Content-Type'];
+        } else {
+            body = JSON.stringify({ name, profile_picture: profilePicture });
+        }
+
         const response = await fetch(`${API_BASE}/users/me`, {
             method: 'PUT',
-            headers: getHeaders(),
-            body: JSON.stringify({ name, profile_picture: profilePicture })
+            headers: headers,
+            body: body
         });
         const data = await handleResponse(response);
         if (data && data.profile) {

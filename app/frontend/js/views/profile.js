@@ -51,8 +51,9 @@ const ProfileView = {
                                         <input type="text" class="form-control" id="profile-name" value="${profileName}" placeholder="Your full name" required>
                                     </div>
                                     <div class="mb-3">
-                                        <label for="profile-picture" class="form-label">Profile Picture URL</label>
-                                        <input type="url" class="form-control" id="profile-picture" value="${user.profile_picture || ''}" placeholder="https://example.com/avatar.jpg">
+                                        <label for="profile-picture" class="form-label">Profile Picture File</label>
+                                        <input type="file" class="form-control" id="profile-picture" accept="image/*">
+                                        ${user.profile_picture ? `<div class="mt-2"><img src="${user.profile_picture}" alt="Current Profile" style="max-width: 100px; max-height: 100px; object-fit: cover;" class="rounded border"></div>` : ''}
                                     </div>
                                     <button type="submit" class="btn btn-primary w-100">Update Profile</button>
                                 </form>
@@ -127,7 +128,8 @@ const ProfileView = {
             profileForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const name = document.getElementById('profile-name').value;
-                const picture = document.getElementById('profile-picture').value;
+                const pictureInput = document.getElementById('profile-picture');
+                const picture = pictureInput.files.length > 0 ? pictureInput.files[0] : null;
 
                 try {
                     await api.updateProfile(name, picture);

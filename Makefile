@@ -13,7 +13,7 @@ up: build
 	docker-compose up -d
 
 up-force: build
-	-@docker rm -f vault postgres auth_service user_service transition_service blockchain_service nginx
+	-@docker rm -f vault postgres auth_service user_service transaction_service blockchain_service nginx
 	docker-compose up -d
 
 down:

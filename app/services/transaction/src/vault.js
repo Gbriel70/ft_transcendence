@@ -8,7 +8,7 @@ let client;
 async function getClient() {
   if (client) return client;
 
-  const serviceName = process.env.SERVICE_NAME || 'blockchain';
+  const serviceName = process.env.SERVICE_NAME || 'transaction';
   const roleId = readFile(process.env.VAULT_ROLE_ID_FILE || `/vault-keys/approles/${serviceName}_role_id`);
   const secretId = readFile(process.env.VAULT_SECRET_ID_FILE || `/vault-keys/approles/${serviceName}_secret_id`);
 

@@ -16,7 +16,7 @@ services:
     networks:
       - minibank-network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8200/v1/sys/health"]
+      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8200/v1/sys/health" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -74,6 +74,7 @@ services:
       SERVICE_NAME: user
     volumes:
       - vault_data:/vault-keys:ro
+      - uploads_data:/app/uploads
     depends_on:
       vault:
         condition: service_healthy
@@ -83,15 +84,15 @@ services:
       - minibank-network
     restart: unless-stopped
 
-  # ==================== TRANSITION SERVICE  ====================
-  transition_service:
+  # ==================== TRANSACTION SERVICE  ====================
+  transaction_service:
     build:
-      context: ./app/services/transition
+      context: ./app/services/transaction
       dockerfile: dockerfile
-    container_name: transition_service
+    container_name: transaction_service
     environment:
       VAULT_ADDR: http://vault:8200
-      SERVICE_NAME: transition
+      SERVICE_NAME: transaction
     volumes:
       - vault_data:/vault-keys:ro
     depends_on:
@@ -137,7 +138,7 @@ services:
     depends_on:
       - auth_service
       - user_service
-      - transition_service
+      - transaction_service
       - blockchain_service
     networks:
       - minibank-network
@@ -250,3 +251,4 @@ volumes:
   vault_data:
   vault_logs:
   grafana_data:
+  uploads_data:

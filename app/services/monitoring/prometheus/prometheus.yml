@@ -37,10 +37,10 @@ scrape_configs:
     static_configs:
       - targets: ["user_service:3002"]
 
-  - job_name: "transition_service"
+  - job_name: "transaction_service"
     metrics_path: /metrics
     static_configs:
-      - targets: ["transition_service:3003"]
+      - targets: ["transaction_service:3003"]
 
   - job_name: "blockchain_service"
     metrics_path: /metrics

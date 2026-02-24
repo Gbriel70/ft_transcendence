@@ -8,7 +8,7 @@ const PORT = process.env.SERVICE_PORT || 3003;
 app.use(express.json());
 
 const register = client.register;
-register.setDefaultLabels({ service: process.env.SERVICE_NAME || 'transition' });
+register.setDefaultLabels({ service: process.env.SERVICE_NAME || 'transaction' });
 client.collectDefaultMetrics({ register });
 
 const httpRequestDuration = new client.Histogram({
@@ -25,8 +25,7 @@ const httpRequestsTotal = new client.Counter({
 });
 
 app.use((req, res, next) => {
-  if (req.path === '/metrics')
-  {
+  if (req.path === '/metrics') {
     return next();
   }
 
@@ -62,12 +61,11 @@ app.post('/transactions', (req, res) => {
   res.json({ message: 'Create transaction endpoint' });
 });
 
-async function bootstrap()
-{
+async function bootstrap() {
   await initVault();
 
   app.listen(PORT, () => {
-    console.log(`✅ Transition service running on port ${PORT}`);
+    console.log(`✅ Transaction service running on port ${PORT}`);
   });
 }
 

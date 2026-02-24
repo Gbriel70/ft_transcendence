@@ -8,4 +8,4 @@ COPY src ./src
 
 EXPOSE 3003
 
-CMD ["node", "src/transition.js"]
+CMD ["node", "src/transaction.js"]

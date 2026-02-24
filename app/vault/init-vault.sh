@@ -78,8 +78,13 @@ fi
 log_info "Initializing Vault..."
 
 # CHECK IF ALREADY INITIALIZED
-VAULT_STATUS_OUTPUT=$(vault status -format=json 2>/dev/null || echo '{"initialized":false}')
-IS_INITIALIZED=$(echo "$VAULT_STATUS_OUTPUT" | grep -o '"initialized":[^,}]*' | cut -d':' -f2 | tr -d ' ')
+VAULT_STATUS_OUTPUT=$(vault status 2>&1 || echo "ERROR:$?")
+echo "DEBUG VAULT STATUS: =>$VAULT_STATUS_OUTPUT<="
+if echo "$VAULT_STATUS_OUTPUT" | grep 'Initialized' | grep -q 'true'; then
+    IS_INITIALIZED="true"
+else
+    IS_INITIALIZED=""
+fi
 
 if [ "$IS_INITIALIZED" = "true" ]; then
     log_warning "Vault already initialized"
@@ -142,14 +147,19 @@ if [ "$SEAL_STATUS" = "false" ]; then
 else
     log_info "Unsealing (3/5 keys)..."
     
-    vault operator unseal "$UNSEAL_KEY_1" 2>&1 | grep -E "Unseal Progress|Sealed" || true
-    vault operator unseal "$UNSEAL_KEY_2" 2>&1 | grep -E "Unseal Progress|Sealed" || true
-    vault operator unseal "$UNSEAL_KEY_3" 2>&1 | grep -E "Unseal Progress|Sealed" || true
+    vault operator unseal "$VAULT_UNSEAL_KEY_1" || true
+    vault operator unseal "$VAULT_UNSEAL_KEY_2" || true
+    vault operator unseal "$VAULT_UNSEAL_KEY_3" || true
     
     log_success "Unsealed!"
 fi
 
-SEAL_STATUS=$(vault status -format=json 2>/dev/null | jq -r '.sealed' 2>/dev/null || echo "true")
+SEAL_STATUS_OUTPUT=$(vault status 2>&1 || true)
+if echo "$SEAL_STATUS_OUTPUT" | grep 'Sealed' | grep -q 'false'; then
+    SEAL_STATUS="false"
+else
+    SEAL_STATUS="true"
+fi
 if [ "$SEAL_STATUS" != "false" ]; then
     log_error "Failed to unseal!"
     vault status
@@ -159,7 +169,7 @@ fi
 # ==================== LOGIN ====================
 log_info "Authenticating..."
 
-vault login "$ROOT_TOKEN" >/dev/null 2>&1 || { log_error "Login failed"; exit 1; }
+vault login "$VAULT_ROOT_TOKEN" >/dev/null 2>&1 || { log_error "Login failed"; exit 1; }
 log_success "Authenticated!"
 
 # ==================== SETUP ====================
@@ -209,6 +219,7 @@ EOF
 vault policy write transaction-service /tmp/transaction-policy.hcl >/dev/null 2>&1
 
 cat > /tmp/blockchain-policy.hcl <<'EOF'
+path "secret/data/database" { capabilities = ["read"] }
 path "secret/data/blockchain" { capabilities = ["read"] }
 EOF
 vault policy write blockchain-service /tmp/blockchain-policy.hcl >/dev/null 2>&1
@@ -250,7 +261,7 @@ echo "   6 secrets (database, jwt, 4 configs)"
 echo "   4 policies (granular access)"
 echo "   4 AppRoles (service authentication)"
 echo ""
-echo -e "${YELLOW}Root Token: ${ROOT_TOKEN:0:20}...${NC}"
+echo -e "${YELLOW}Root Token: ${VAULT_ROOT_TOKEN:0:20}...${NC}"
 echo -e "${YELLOW}Keys: $VAULT_KEYS_FILE${NC}"
 echo ""
 echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
