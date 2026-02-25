@@ -2,9 +2,15 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-RUN npm install express node-vault
+RUN apk add --no-cache curl netcat-openbsd
+
+COPY package.json ./
+
+RUN npm install
 
 COPY src ./src
+
+RUN mkdir -p artifacts/contracts
 
 EXPOSE 3004
 

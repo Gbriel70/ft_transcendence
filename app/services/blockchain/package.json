@@ -1,0 +1,14 @@
+{
+  "name": "blockchain-service",
+  "version": "1.0.0",
+  "description": "Blockchain API service for MiniBank",
+  "main": "src/blockchain.js",
+  "scripts": {
+    "start": "node src/blockchain.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ethers": "^6.9.0",
+    "node-fetch": "^3.3.2"
+  }
+}

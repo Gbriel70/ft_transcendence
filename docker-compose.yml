@@ -42,6 +42,25 @@ services:
       retries: 5
     restart: unless-stopped
 
+  #==================== HARDHAT NODE =======================#
+  hardhat:
+    build:
+      context: ./app/services/blockchain/hardhat
+      dockerfile: dockerfile
+    container_name: hardhat
+    ports:
+      - "8545:8545"
+    volumes:
+      - hardhat_artifacts:/app/artifacts
+    networks:
+      - minibank-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "8545"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   #==================== AUTH SERVICE  ====================
   auth_service:
     build:
@@ -112,12 +131,16 @@ services:
     environment:
       VAULT_ADDR: http://vault:8200
       SERVICE_NAME: blockchain
+      HARDHAT_URL: http://hardhat:8545
     volumes:
       - vault_data:/vault-keys:ro
+      - hardhat_artifacts:/app/artifacts:ro
     depends_on:
       vault:
         condition: service_healthy
       postgres:
+        condition: service_healthy
+      hardhat:
         condition: service_healthy
     networks:
       - minibank-network
@@ -152,3 +175,4 @@ volumes:
   nginx_certs:
   vault_data:
   vault_logs:
+  hardhat_artifacts:
