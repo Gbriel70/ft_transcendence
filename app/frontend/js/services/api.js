@@ -138,7 +138,4 @@ const api = {
     }
 };
 
-window._api = api;
-
 export default api;
-export{api};

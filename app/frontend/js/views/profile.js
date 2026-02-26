@@ -116,9 +116,6 @@ const ProfileView = {
         const user = api.getCurrentUser();
         if (!user) return;
 
-        console.log('api object:', api); // <-- adicione isso temporariamente
-        console.log('changeEmail:', api.changeEmail);
-
         // Logout
         const logoutBtn = document.getElementById('logout-btn');
         if (logoutBtn) {
