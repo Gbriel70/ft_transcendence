@@ -47,7 +47,6 @@ services:
     build:
       context: ./app/services/auth
       dockerfile: dockerfile
-      network: host
     container_name: auth_service
     environment:
       VAULT_ADDR: http://vault:8200
@@ -69,7 +68,6 @@ services:
     build:
       context: ./app/services/user
       dockerfile: dockerfile
-      network: host
     container_name: user_service
     environment:
       VAULT_ADDR: http://vault:8200
@@ -91,10 +89,6 @@ services:
     build:
       context: ./app/services/transaction
       dockerfile: dockerfile
-      network: host
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
     container_name: transaction_service
     environment:
       VAULT_ADDR: http://vault:8200
@@ -115,7 +109,6 @@ services:
     build:
       context: ./app/services/blockchain
       dockerfile: dockerfile
-      network: host
     container_name: blockchain_service
     environment:
       VAULT_ADDR: http://vault:8200
