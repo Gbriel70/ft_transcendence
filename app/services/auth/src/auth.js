@@ -208,6 +208,7 @@ app.post('/login', async (req, res) =>
       {
         id: user.id,
         email: user.email,
+        name: user.name,
       }
     });
   } catch (error)

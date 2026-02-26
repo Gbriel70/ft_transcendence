@@ -13,7 +13,7 @@ const getHeaders = () => {
 
 const handleResponse = async (response) => {
     if (!response.ok) {
-        if (response.status === 401) {
+        if (response.status === 401 || response.status === 403) {
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             window.location.hash = '/login';
@@ -36,6 +36,26 @@ const api = {
         if (data.token) {
             localStorage.setItem('token', data.token);
             localStorage.setItem('user', JSON.stringify(data.user));
+
+            try {
+                const profileRes = await fetch(`${API_BASE}/users/me`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${data.token}`
+                    }
+                });
+                if (profileRes.ok) {
+                    const profile = await profileRes.json();
+                    const fullUser = {
+                        ...data.user,
+                        name: profile.name || data.user.name,
+                        profile_picture: profile.profile_picture || null
+                    };
+                    localStorage.setItem('user', JSON.stringify(fullUser));
+                }
+            } catch (e) {
+                console.warn('Could not fetch full profile after login:', e);
+            }
         }
         return { success: true, ...data };
     },
@@ -81,27 +101,33 @@ const api = {
 
     getCurrentUser: () => {
         const userStr = localStorage.getItem('user');
-        return userStr ? JSON.parse(userStr) : null;
+        try {
+            return userStr ? JSON.parse(userStr) : null;
+        } catch {
+            return null;
+        }
     },
 
     updateProfile: async (name, profilePicture) => {
-        let body;
-        let headers = getHeaders();
+        let profile_picture = null;
 
         if (profilePicture instanceof File) {
-            body = new FormData();
-            if (name) body.append('name', name);
-            body.append('profile_picture', profilePicture);
-            // Browser sets the correct multipart/form-data boundary automatically when body is FormData
-            delete headers['Content-Type'];
-        } else {
-            body = JSON.stringify({ name, profile_picture: profilePicture });
+            profile_picture = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(profilePicture);
+            });
         }
+
+        const body = {};
+        if (name !== undefined && name !== null) body.name = name;
+        if (profile_picture) body.profile_picture = profile_picture;
 
         const response = await fetch(`${API_BASE}/users/me`, {
             method: 'PUT',
-            headers: headers,
-            body: body
+            headers: getHeaders(),
+            body: JSON.stringify(body)
         });
         const data = await handleResponse(response);
         if (data && data.profile) {

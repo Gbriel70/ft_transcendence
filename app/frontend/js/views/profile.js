@@ -11,6 +11,18 @@ const ProfileView = {
 
         const profileName = user.name || user.username || '';
 
+        const avatarHtml = user.profile_picture
+            ? `<img id="avatar-preview"
+                src="${user.profile_picture}"
+                alt="Profile Picture"
+                style="width:90px;height:90px;object-fit:cover;border-radius:50%;border:3px solid #0d6efd;">`
+            : `<div id="avatar-preview"
+                style="width:90px;height:90px;border-radius:50%;background:#0d6efd;
+                border:3px solid #0d6efd;display:flex;align-items:center;justify-content:center;
+                color:white;font-weight:bold;font-size:32px;">
+                ${(profileName || '?')[0].toUpperCase()}
+               </div>`;
+
         return `
             <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4 w-100">
                 <div class="container">
@@ -116,24 +128,52 @@ const ProfileView = {
         const user = api.getCurrentUser();
         if (!user) return;
 
-        // Logout
         const logoutBtn = document.getElementById('logout-btn');
         if (logoutBtn) {
             logoutBtn.addEventListener('click', () => api.logout());
         }
 
-        // Profile Update
+        const pictureInput = document.getElementById('profile-picture');
+
+        if (pictureInput) {
+            pictureInput.addEventListener('change', () => {
+                const file = pictureInput.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const avatarEl = document.getElementById('avatar-preview');
+                    if (avatarEl) {
+                        avatarEl.outerHTML = `<img id="avatar-preview"
+                            src="${e.target.result}"
+                            style="width:90px;height:90px;object-fit:cover;border-radius:50%;border:3px solid #0d6efd;"
+                            alt="Profile Picture">`;
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
         const profileForm = document.getElementById('profile-form');
         if (profileForm) {
             profileForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const name = document.getElementById('profile-name').value;
-                const pictureInput = document.getElementById('profile-picture');
-                const picture = pictureInput.files.length > 0 ? pictureInput.files[0] : null;
+                const picture = pictureInput && pictureInput.files.length > 0 ? pictureInput.files[0] : null;
 
                 try {
                     await api.updateProfile(name, picture);
                     alert('Profile updated successfully!');
+
+                    const updatedUser = api.getCurrentUser();
+                    const avatarEl = document.getElementById('avatar-preview');
+                    if (avatarEl && updatedUser.profile_picture) {
+                        avatarEl.outerHTML = `<img id="avatar-preview"
+                            src="${updatedUser.profile_picture}"
+                            style="width:90px;height:90px;object-fit:cover;border-radius:50%;border:3px solid #0d6efd;"
+                            alt="Profile Picture">`;
+                    }
+
+                    if (pictureInput) pictureInput.value = '';
                 } catch (error) {
                     alert(`Error updating profile: ${error.message}`);
                 }

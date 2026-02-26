@@ -9,17 +9,31 @@ const DashboardView = {
             return '<p>Redirecting...</p>';
         }
 
+        const avatarHtml = user.profile_picture
+            ? `<img src="${user.profile_picture}" alt="Avatar"
+                style="width:40px;height:40px;object-fit:cover;border-radius:50%;border:2px solid rgba(255,255,255,0.7);margin-right:10px;">`
+            : `<div style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.25);
+                border:2px solid rgba(255,255,255,0.7);display:inline-flex;align-items:center;
+                justify-content:center;color:white;font-weight:bold;font-size:16px;margin-right:10px;">
+                ${(user.name || '?')[0].toUpperCase()}
+               </div>`;
+
         return `
             <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4 w-100">
                 <div class="container">
-                    <a class="navbar-brand" href="#/dashboard">Minibank - ${user.name || user.email}</a>
+                    <a class="navbar-brand d-flex align-items-center" href="#/dashboard">
+                        ${avatarHtml}
+                        Minibank - ${user.name || 'User'}
+                    </a>
                     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                         <span class="navbar-toggler-icon"></span>
                     </button>
                     <div class="collapse navbar-collapse" id="navbarNav">
-                        <ul class="navbar-nav ms-auto">
+                        <ul class="navbar-nav ms-auto align-items-center">
                             <li class="nav-item me-2">
-                                <a class="nav-link" href="#/profile">Profile</a>
+                                <a class="nav-link d-flex align-items-center gap-2" href="#/profile">
+                                    Profile
+                                </a>
                             </li>
                             <li class="nav-item">
                                 <button id="logout-btn" class="btn btn-outline-light">Logout</button>

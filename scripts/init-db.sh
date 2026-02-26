@@ -61,6 +61,7 @@ psql -v ON_ERROR_STOP=1 --username "postgres" --dbname "minibank_db" <<-EOSQL
         id SERIAL PRIMARY KEY,
         auth_user_id INTEGER REFERENCES user_auth(id),
         name VARCHAR(255) REFERENCES user_auth(name),
+        profile_picture TEXT,
         wallet_address VARCHAR(255) UNIQUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );

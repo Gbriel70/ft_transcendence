@@ -66,7 +66,7 @@ async function initDatabase()
             id SERIAL PRIMARY KEY,
             auth_user_id INTEGER REFERENCES user_auth(id) ON DELETE CASCADE,
             name VARCHAR(255) NOT NULL,
-            profile_picture VARCHAR(500),
+            profile_picture TEXT,
             wallet_address VARCHAR(255) UNIQUE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

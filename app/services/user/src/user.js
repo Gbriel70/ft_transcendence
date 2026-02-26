@@ -5,7 +5,7 @@ const { getPool, initDatabase } = require('./db');
 const vaultClient = require('./vault');
 
 const app = express();
-app.use(express.json());
+app.use(express.json({limit: '10mb'}));
 
 let config;
 
@@ -269,9 +269,6 @@ app.put('/users/me', authenticateToken, async (req, res) =>
     const authUserId = req.user.id;
     const { name, profile_picture } = req.body;
 
-    console.log('PUT /users/me - authUserId:', authUserId);
-    console.log('PUT /users/me - body:', { name, profile_picture });
-
     if (!name && !profile_picture)
     {
       return res.status(400).json({ error: 'At least one field (name or profile_picture) must be provided' });
@@ -279,7 +276,6 @@ app.put('/users/me', authenticateToken, async (req, res) =>
 
     const pool = await getPool();
 
-    // Remover updated_at da query
     let updateQuery = 'UPDATE user_profiles SET';
     const values = [];
     let paramIndex = 1;
@@ -299,12 +295,14 @@ app.put('/users/me', authenticateToken, async (req, res) =>
       paramIndex++;
     }
 
+    // Adicionar updated_at
+    updates.push(` updated_at = $${paramIndex}`);
+    values.push(new Date());
+    paramIndex++;
+
     updateQuery += updates.join(',');
     updateQuery += ` WHERE auth_user_id = $${paramIndex} RETURNING *`;
     values.push(authUserId);
-
-    console.log('Executing query:', updateQuery);
-    console.log('With values:', values);
 
     const result = await pool.query(updateQuery, values);
 
@@ -324,6 +322,7 @@ app.put('/users/me', authenticateToken, async (req, res) =>
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
+
 
 // DELETE /users/me - Delete user account
 app.delete('/users/me', authenticateToken, async (req, res) =>
