@@ -32,7 +32,7 @@ services:
       POSTGRES_PASSWORD: admin123
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init_db.sh:/docker-entrypoint-initdb.d/init_db.sh:ro
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
     networks:
       - minibank-network
     healthcheck:
@@ -120,6 +120,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      auth_service:
+        condition: service_started
     networks:
       - minibank-network
     restart: unless-stopped
@@ -134,7 +136,7 @@ services:
       - "8080:80"
       - "8443:443"
     volumes:
-      - nginx_certs:/etc/nginx/certs
+      - ./certs:/etc/nginx/certs:ro
     depends_on:
       - auth_service
       - user_service
@@ -247,7 +249,6 @@ networks:
 
 volumes:
   postgres_data:
-  nginx_certs:
   vault_data:
   vault_logs:
   grafana_data:
