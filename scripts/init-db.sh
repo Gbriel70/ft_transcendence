@@ -59,12 +59,17 @@ psql -v ON_ERROR_STOP=1 --username "postgres" --dbname "minibank_db" <<-EOSQL
 
     CREATE TABLE IF NOT EXISTS user_profiles (
         id SERIAL PRIMARY KEY,
-        auth_user_id INTEGER REFERENCES user_auth(id),
-        name VARCHAR(255) REFERENCES user_auth(name),
+        auth_user_id INTEGER REFERENCES user_auth(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
         profile_picture TEXT,
         wallet_address VARCHAR(255) UNIQUE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- Migrations: add columns if they don't exist yet
+    ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS profile_picture TEXT;
+    ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
     -- Índices
     CREATE INDEX IF NOT EXISTS idx_user_auth_email ON user_auth(email);

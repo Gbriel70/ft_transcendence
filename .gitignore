@@ -17,6 +17,9 @@ postgres_data/
 nginx_certs/
 pgadmin_data/
 
+# SSL/TLS - certificados gerados localmente (não commitar chaves privadas)
+certs/
+
 # IDE
 .vscode/
 .idea/

@@ -76,9 +76,15 @@ async function initDatabase()
         CREATE INDEX IF NOT EXISTS idx_user_profiles_wallet_address ON user_profiles(wallet_address);
     `;
 
+    const migrations = `
+        ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS profile_picture TEXT;
+        ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    `;
+
     try 
     {
         await pool.query(schema);
+        await pool.query(migrations);
         console.log('Database schema ready');
     } catch (error) 
     {
