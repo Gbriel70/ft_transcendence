@@ -24,9 +24,9 @@ build:
 	@echo "$(CYAN)$(BOLD)[Docker] Buildando imagens...$(RESET)"
 	$(DC) build
 
-up:
+up: cleanup-stopped
 	@echo "$(CYAN)$(BOLD)[Docker] Subindo serviços...$(RESET)"
-	$(DC) up -d
+	$(DC) up -d --remove-orphans
 	@echo "$(GREEN)$(BOLD)[OK] Projeto rodando em https://localhost:8443$(RESET)"
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -40,6 +40,12 @@ re: down-hard build up
 clean: down-hard
 
 # ── Internos ──────────────────────────────────────────────────────────────────
+cleanup-stopped:
+	@echo "$(CYAN)$(BOLD)[Docker] Limpando containers parados...$(RESET)"
+	@docker ps -a --format "table {{.Names}}" | grep -E "vault|postgres|auth_service|user_service|transaction_service|blockchain_service|nginx|prometheus|alertmanager|grafana|node_exporter|cadvisor|nginx_exporter" | while read container; do \
+		if [ ! -z "$$container" ]; then docker rm -f $$container 2>/dev/null || true; fi; \
+	done || true
+
 down:
 	@echo "$(CYAN)$(BOLD)[Docker] Parando serviços...$(RESET)"
 	$(DC) down
