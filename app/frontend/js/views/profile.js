@@ -25,7 +25,7 @@ const ProfileView = {
                             <rect x="13" y="3" width="8" height="8" rx="2" fill="#1e9bd7"/>
                             <rect x="13" y="13" width="8" height="8" rx="2" fill="#1e9bd7"/>
                         </svg>
-                        MiniBank
+                        <span style="font-weight: 400;">Mini</span><span style="font-weight: 700;">Bank</span>
                     </a>
                     <div class="navbar-actions">
                         <button class="btn-icon" onclick="window.location.hash='/dashboard'">
@@ -178,6 +178,19 @@ const ProfileView = {
                     </div>
                 </div>
             </main>
+
+            <!-- Footer -->
+            <footer class="footer">
+                <div class="footer-content">
+                    <div class="footer-links">
+                        <a href="#/terms">Privacy Policy</a>
+                        <a href="#/terms">Terms of Service</a>
+                    </div>
+                    <div class="footer-copyright">
+                        © 2026 MiniBank. All rights reserved.
+                    </div>
+                </div>
+            </footer>
         `;
     },
     afterRender: async () => {

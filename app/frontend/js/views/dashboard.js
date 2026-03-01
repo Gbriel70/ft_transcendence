@@ -23,7 +23,7 @@ const DashboardView = {
                             <rect x="13" y="3" width="8" height="8" rx="2" fill="#1e9bd7"/>
                             <rect x="13" y="13" width="8" height="8" rx="2" fill="#1e9bd7"/>
                         </svg>
-                        MiniBank
+                        <span style="font-weight: 400;">Mini</span><span style="font-weight: 700;">Bank</span>
                     </a>
                     <div class="navbar-actions">
                         <div class="navbar-user-profile">
@@ -156,6 +156,19 @@ const DashboardView = {
                     </table>
                 </div>
             </main>
+
+            <!-- Footer -->
+            <footer class="footer">
+                <div class="footer-content">
+                    <div class="footer-links">
+                        <a href="#/terms">Privacy Policy</a>
+                        <a href="#/terms">Terms of Service</a>
+                    </div>
+                    <div class="footer-copyright">
+                        © 2026 MiniBank. All rights reserved.
+                    </div>
+                </div>
+            </footer>
         `;
     },
     afterRender: async () => {
@@ -171,22 +184,46 @@ const DashboardView = {
 
         const loadData = async () => {
             try {
-                const profile = await api.getProfile(user.id).catch(err => {
-                    console.error('Failed to load profile:', err);
-                    return null;
-                });
-
-                const balanceEl = document.getElementById('balance-amount');
-                if (profile && profile.balance !== undefined && profile.balance !== null) {
-                    balanceEl.textContent = parseFloat(profile.balance).toFixed(2);
-                } else {
-                    balanceEl.textContent = "0.00 (Error)";
+                // Check for mock data first
+                const mockDataStr = localStorage.getItem('mockData');
+                let mockData = null;
+                
+                if (mockDataStr) {
+                    try {
+                        mockData = JSON.parse(mockDataStr);
+                        console.log('Using mock data:', mockData);
+                    } catch (e) {
+                        console.error('Failed to parse mock data:', e);
+                    }
                 }
 
-                const txData = await api.getTransactions().catch(err => {
-                    console.error('Failed to load transactions:', err);
-                    return null;
-                });
+                // Load balance
+                const balanceEl = document.getElementById('balance-amount');
+                if (mockData && mockData.balance !== undefined) {
+                    balanceEl.textContent = parseFloat(mockData.balance).toFixed(2);
+                } else {
+                    const profile = await api.getProfile(user.id).catch(err => {
+                        console.error('Failed to load profile:', err);
+                        return null;
+                    });
+                    
+                    if (profile && profile.balance !== undefined && profile.balance !== null) {
+                        balanceEl.textContent = parseFloat(profile.balance).toFixed(2);
+                    } else {
+                        balanceEl.textContent = "0.00";
+                    }
+                }
+
+                // Load transactions
+                let txData = null;
+                if (mockData && mockData.transactions) {
+                    txData = { data: mockData.transactions };
+                } else {
+                    txData = await api.getTransactions().catch(err => {
+                        console.error('Failed to load transactions:', err);
+                        return null;
+                    });
+                }
 
                 const txList = document.getElementById('transactions-list');
                 if (txData && Array.isArray(txData.data)) {
@@ -194,17 +231,22 @@ const DashboardView = {
                         txList.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No recent transactions.</td></tr>';
                     } else {
                         // Calculate income and expenses
-                        let totalIncome = 0;
-                        let totalExpense = 0;
+                        let totalIncome = mockData && mockData.income !== undefined ? mockData.income : 0;
+                        let totalExpense = mockData && mockData.expenses !== undefined ? mockData.expenses : 0;
 
-                        txData.data.forEach(tx => {
-                            const amount = parseFloat(tx.amount) || 0;
-                            if (amount > 0) {
-                                totalIncome += amount;
-                            } else {
-                                totalExpense += Math.abs(amount);
-                            }
-                        });
+                        // If not using mock income/expenses, calculate from transactions
+                        if (!mockData || mockData.income === undefined) {
+                            totalIncome = 0;
+                            totalExpense = 0;
+                            txData.data.forEach(tx => {
+                                const amount = parseFloat(tx.amount) || 0;
+                                if (amount > 0) {
+                                    totalIncome += amount;
+                                } else {
+                                    totalExpense += Math.abs(amount);
+                                }
+                            });
+                        }
 
                         // Update income/expense display
                         document.getElementById('income-amount').textContent = `+R$ ${totalIncome.toFixed(2)}`;
