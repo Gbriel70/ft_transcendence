@@ -3,34 +3,75 @@ import api from '../services/api.js';
 const RegisterView = {
     render: async () => {
         return `
-            <div class="container d-flex justify-content-center align-items-center vh-100">
-                <div class="card shadow-lg p-4" style="max-width: 400px; width: 100%;">
-                    <div class="card-body">
-                        <h2 class="text-center mb-4">Register</h2>
-                        <form id="register-form">
-                            <div class="mb-3">
-                                <label for="username" class="form-label">Username</label>
-                                <input type="text" class="form-control" id="username" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="email" class="form-label">Email address</label>
-                                <input type="email" class="form-control" id="email" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="password" class="form-label">Password</label>
-                                <input type="password" class="form-control" id="password" required>
-                            </div>
-                             <div class="mb-3">
-                                <label for="confirm-password" class="form-label">Confirm Password</label>
-                                <input type="password" class="form-control" id="confirm-password" required>
-                            </div>
-                            <div class="d-grid gap-2">
-                                <button type="submit" class="btn btn-success">Register</button>
-                            </div>
-                        </form>
-                        <div class="mt-3 text-center">
-                            <p>Already have an account? <a href="#/login">Login</a></p>
+            <!-- Background Decoration -->
+            <div class="bg-decoration"></div>
+
+            <div class="auth-container">
+                <div class="auth-form-wrapper">
+                    <div class="auth-header">
+                        <div class="auth-logo">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="3" y="3" width="8" height="8" rx="2" fill="#17b5ba"/>
+                                <rect x="3" y="13" width="8" height="8" rx="2" fill="#17b5ba"/>
+                                <rect x="13" y="3" width="8" height="8" rx="2" fill="#1e9bd7"/>
+                                <rect x="13" y="13" width="8" height="8" rx="2" fill="#1e9bd7"/>
+                            </svg>
                         </div>
+                        <h1>MiniBank</h1>
+                        <p>Create your account</p>
+                    </div>
+
+                    <form id="register-form" class="form-modern">
+                        <div class="form-group-modern">
+                            <label for="username" class="form-label-modern">Full Name</label>
+                            <input 
+                                type="text" 
+                                class="form-input-modern" 
+                                id="username" 
+                                placeholder="John Doe"
+                                required
+                            >
+                        </div>
+                        <div class="form-group-modern">
+                            <label for="email" class="form-label-modern">Email Address</label>
+                            <input 
+                                type="email" 
+                                class="form-input-modern" 
+                                id="email" 
+                                placeholder="you@example.com"
+                                required
+                            >
+                        </div>
+                        <div class="form-group-modern">
+                            <label for="password" class="form-label-modern">Password</label>
+                            <input 
+                                type="password" 
+                                class="form-input-modern" 
+                                id="password" 
+                                placeholder="••••••••"
+                                required
+                            >
+                        </div>
+                        <div class="form-group-modern">
+                            <label for="confirm-password" class="form-label-modern">Confirm Password</label>
+                            <input 
+                                type="password" 
+                                class="form-input-modern" 
+                                id="confirm-password" 
+                                placeholder="••••••••"
+                                required
+                            >
+                        </div>
+                        <div class="terms-agreement">
+                            <p>By creating an account, you agree to our <a href="#/terms">Terms and Conditions</a></p>
+                        </div>
+                        <button type="submit" class="btn-primary-modern">
+                            Create Account
+                        </button>
+                    </form>
+
+                    <div class="auth-footer">
+                        <p>Already have an account? <a href="#/login">Sign In</a></p>
                     </div>
                 </div>
             </div>

@@ -2,13 +2,15 @@ import LoginView from './views/login.js';
 import RegisterView from './views/register.js';
 import DashboardView from './views/dashboard.js';
 import ProfileView from './views/profile.js';
+import TermsView from './views/terms.js';
 
 const routes = {
     '/': LoginView,
     '/login': LoginView,
     '/register': RegisterView,
     '/dashboard': DashboardView,
-    '/profile': ProfileView
+    '/profile': ProfileView,
+    '/terms': TermsView
 };
 
 const router = async () => {
