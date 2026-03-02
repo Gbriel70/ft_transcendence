@@ -24,11 +24,10 @@ const ProfileView = {
                             <rect x="3" y="13" width="8" height="8" rx="2" fill="#17b5ba"/>
                             <rect x="13" y="3" width="8" height="8" rx="2" fill="#1e9bd7"/>
                             <rect x="13" y="13" width="8" height="8" rx="2" fill="#1e9bd7"/>
-                        </svg>
-                        <span style="font-weight: 400;">Mini</span><span style="font-weight: 700;">Bank</span>
+                        </svg><span class="navbar-brand-text"><span style="font-weight: 400;">Mini</span><span style="font-weight: 700;">Bank</span></span>
                     </a>
                     <div class="navbar-actions">
-                        <button class="btn-icon" onclick="window.location.hash='/dashboard'">
+                        <button class="btn-icon" id="dashboard-btn">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <polyline points="12 3 20 7.5 20 16.5 12 21 4 16.5 4 7.5 12 3"></polyline>
                                 <line x1="3.27" y1="6.5" x2="12" y2="12.5"></line>
@@ -73,13 +72,15 @@ const ProfileView = {
                                     id="profile-picture" 
                                     accept="image/*"
                                 >
-                                <label for="profile-picture" class="btn-primary-modern" style="margin-bottom: 0;">
+                                <label for="profile-picture" class="btn-upload-photo">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
                                         <circle cx="12" cy="13" r="4"></circle>
                                     </svg>
-                                    Change Photo
+                                    <span>Select Photo</span>
                                 </label>
+                                <p id="selected-photo-name" class="avatar-upload-hint">No file selected</p>
+                                <button type="button" id="update-photo-btn" class="btn-primary-modern">Update Photo</button>
                             </div>
                         </div>
                     </div>
@@ -101,7 +102,7 @@ const ProfileView = {
                                     required
                                 >
                             </div>
-                            <button type="submit" class="btn-primary-modern">Save Changes</button>
+                            <button type="submit" class="btn-primary-modern">Update Name</button>
                         </form>
                     </div>
 
@@ -197,18 +198,32 @@ const ProfileView = {
         const user = api.getCurrentUser();
         if (!user) return;
 
+        const dashboardBtn = document.getElementById('dashboard-btn');
+        if (dashboardBtn) {
+            dashboardBtn.addEventListener('click', () => {
+                window.location.hash = '/dashboard';
+            });
+        }
+
         const logoutBtn = document.getElementById('logout-btn');
         if (logoutBtn) {
             logoutBtn.addEventListener('click', () => api.logout());
         }
 
         const pictureInput = document.getElementById('profile-picture');
-        const profileName = user.name || user.username || '';
+        const selectedPhotoNameEl = document.getElementById('selected-photo-name');
+        const updatePhotoBtn = document.getElementById('update-photo-btn');
 
         if (pictureInput) {
             pictureInput.addEventListener('change', () => {
                 const file = pictureInput.files[0];
-                if (!file) return;
+                if (!file) {
+                    if (selectedPhotoNameEl) selectedPhotoNameEl.textContent = 'No file selected';
+                    return;
+                }
+
+                if (selectedPhotoNameEl) selectedPhotoNameEl.textContent = file.name;
+
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const avatarEl = document.getElementById('avatar-preview');
@@ -220,16 +235,18 @@ const ProfileView = {
             });
         }
 
-        const profileForm = document.getElementById('profile-form');
-        if (profileForm) {
-            profileForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const name = document.getElementById('profile-name').value;
+        if (updatePhotoBtn) {
+            updatePhotoBtn.addEventListener('click', async () => {
                 const picture = pictureInput && pictureInput.files.length > 0 ? pictureInput.files[0] : null;
 
+                if (!picture) {
+                    alert('Please select a photo first.');
+                    return;
+                }
+
                 try {
-                    await api.updateProfile(name, picture);
-                    alert('Profile updated successfully!');
+                    await api.updateProfile(undefined, picture);
+                    alert('Profile photo updated successfully!');
 
                     const updatedUser = api.getCurrentUser();
                     const avatarEl = document.getElementById('avatar-preview');
@@ -238,8 +255,29 @@ const ProfileView = {
                     }
 
                     if (pictureInput) pictureInput.value = '';
+                    if (selectedPhotoNameEl) selectedPhotoNameEl.textContent = 'No file selected';
                 } catch (error) {
-                    alert(`Error updating profile: ${error.message}`);
+                    alert(`Error updating profile photo: ${error.message}`);
+                }
+            });
+        }
+
+        const profileForm = document.getElementById('profile-form');
+        if (profileForm) {
+            profileForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const name = document.getElementById('profile-name').value.trim();
+
+                if (!name) {
+                    alert('Name cannot be empty.');
+                    return;
+                }
+
+                try {
+                    await api.updateProfile(name);
+                    alert('Name updated successfully!');
+                } catch (error) {
+                    alert(`Error updating name: ${error.message}`);
                 }
             });
         }

@@ -97,6 +97,11 @@ body {
     font-weight: 600;
 }
 
+.navbar-brand-text {
+    display: inline-flex;
+    gap: 0;
+}
+
 .navbar-actions {
     display: flex;
     align-items: center;
@@ -140,6 +145,9 @@ body {
     color: var(--text-primary);
     font-weight: 500;
     white-space: nowrap;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .navbar-email {
@@ -831,9 +839,36 @@ body {
     display: none;
 }
 
-.avatar-upload-input-wrapper label {
-    display: block;
+.btn-upload-photo {
+    display: inline-flex;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border: 1px dashed rgba(139, 164, 203, 0.6);
+    border-radius: 0.5rem;
+    color: var(--text-secondary);
+    background: rgba(22, 48, 87, 0.35);
+    font-size: 0.875rem;
+    font-weight: 500;
     cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-upload-photo:hover {
+    border-color: var(--primary);
+    color: var(--text-primary);
+    background: rgba(22, 48, 87, 0.5);
+}
+
+.avatar-upload-hint {
+    margin-top: 0.5rem;
+    margin-bottom: 0.75rem;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    word-break: break-word;
 }
 
 /* Responsive */

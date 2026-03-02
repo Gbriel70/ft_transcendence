@@ -13,18 +13,17 @@ const TermsView = {
                             <rect x="3" y="13" width="8" height="8" rx="2" fill="#17b5ba"/>
                             <rect x="13" y="3" width="8" height="8" rx="2" fill="#1e9bd7"/>
                             <rect x="13" y="13" width="8" height="8" rx="2" fill="#1e9bd7"/>
-                        </svg>
-                        <span style="font-weight: 400;">Mini</span><span style="font-weight: 700;">Bank</span>
+                        </svg><span class="navbar-brand-text"><span style="font-weight: 400;">Mini</span><span style="font-weight: 700;">Bank</span></span>
                     </a>
                     <div class="navbar-actions">
-                        <a href="#/login" class="btn-icon">
+                        <button class="btn-icon" id="back-btn">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
                                 <polyline points="10 17 15 12 10 7"></polyline>
                                 <line x1="15" y1="12" x2="3" y2="12"></line>
                             </svg>
-                            <span>Back to Login</span>
-                        </a>
+                            <span>Back</span>
+                        </button>
                     </div>
                 </div>
             </nav>
@@ -174,6 +173,15 @@ const TermsView = {
     },
     afterRender: async () => {
         // No additional functionality needed for static terms page
+    }
+};
+
+TermsView.afterRender = async () => {
+    const backBtn = document.getElementById('back-btn');
+    if (backBtn) {
+        backBtn.addEventListener('click', () => {
+            window.history.back();
+        });
     }
 };
 

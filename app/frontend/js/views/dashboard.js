@@ -1,5 +1,33 @@
 import api from '../services/api.js';
 
+const capitalizeWord = (word) => {
+    if (!word) return '';
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+};
+
+const getDashboardDisplayName = (fullName) => {
+    const safeName = (fullName || '').trim();
+    if (!safeName) return 'User';
+
+    let displayName = '';
+    if (safeName.length <= 18) {
+        // Capitalize each word
+        displayName = safeName.split(/\s+/).map(capitalizeWord).join(' ');
+    } else {
+        const words = safeName.split(/\s+/).filter(Boolean);
+        if (words.length > 1) {
+            const firstName = capitalizeWord(words[0]);
+            const lastInitial = capitalizeWord(words[words.length - 1])[0];
+            const compact = `${firstName} ${lastInitial}.`;
+            displayName = compact.length <= 18 ? compact : `${safeName.slice(0, 15)}...`;
+        } else {
+            displayName = `${safeName.slice(0, 15)}...`;
+        }
+    }
+
+    return displayName;
+};
+
 const DashboardView = {
     render: async () => {
         const user = api.getCurrentUser();
@@ -8,6 +36,9 @@ const DashboardView = {
             window.location.hash = '/login';
             return '<p>Redirecting...</p>';
         }
+
+        const fullName = user.name || 'User';
+        const displayName = getDashboardDisplayName(fullName);
 
         return `
             <!-- Background Decoration -->
@@ -22,8 +53,7 @@ const DashboardView = {
                             <rect x="3" y="13" width="8" height="8" rx="2" fill="#17b5ba"/>
                             <rect x="13" y="3" width="8" height="8" rx="2" fill="#1e9bd7"/>
                             <rect x="13" y="13" width="8" height="8" rx="2" fill="#1e9bd7"/>
-                        </svg>
-                        <span style="font-weight: 400;">Mini</span><span style="font-weight: 700;">Bank</span>
+                        </svg><span class="navbar-brand-text"><span style="font-weight: 400;">Mini</span><span style="font-weight: 700;">Bank</span></span>
                     </a>
                     <div class="navbar-actions">
                         <div class="navbar-user-profile">
@@ -31,9 +61,9 @@ const DashboardView = {
                                 ? `<img src="${user.profile_picture}" alt="${user.name}" class="navbar-avatar">`
                                 : `<div class="navbar-avatar navbar-avatar-fallback">${(user.name || 'U')[0].toUpperCase()}</div>`
                             }
-                            <span class="navbar-username">${user.name || 'User'}</span>
+                            <span class="navbar-username" title="${fullName}">${displayName}</span>
                         </div>
-                        <button class="btn-icon" onclick="window.location.hash='/profile'">
+                        <button class="btn-icon" id="profile-btn">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                                 <circle cx="12" cy="7" r="4"></circle>
@@ -174,6 +204,13 @@ const DashboardView = {
     afterRender: async () => {
         const user = api.getCurrentUser();
         if (!user) return;
+
+        const profileBtn = document.getElementById('profile-btn');
+        if (profileBtn) {
+            profileBtn.addEventListener('click', () => {
+                window.location.hash = '/profile';
+            });
+        }
 
         const logoutBtn = document.getElementById('logout-btn');
         if (logoutBtn) {
