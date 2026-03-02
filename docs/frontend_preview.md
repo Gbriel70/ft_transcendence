@@ -1,7 +1,6 @@
 ## frontend preview (without backend)
 
-cd ./app/frontend
-python3 -m http.server 8000
+cd ./app/frontend & python3 -m http.server 8000
 
 Open http://localhost:8000 in your browser to see the frontend preview.
 
@@ -67,7 +66,7 @@ function updateMockData(balance = 12450.00, income = 3200.00, expenses = 1580.00
             }
         ];
     }
-    
+
     // Store the data in localStorage
     const mockData = {
         balance: balance,
@@ -75,10 +74,10 @@ function updateMockData(balance = 12450.00, income = 3200.00, expenses = 1580.00
         expenses: expenses,
         transactions: transactions
     };
-    
+
     localStorage.setItem('mockData', JSON.stringify(mockData));
     console.log('✅ Mock data updated:', mockData);
-    
+
     // Reload the page to see changes
     console.log('🔄 Reloading page...');
     window.location.reload();

@@ -4,6 +4,8 @@ import DashboardView from './views/dashboard.js';
 import ProfileView from './views/profile.js';
 import TermsView from './views/terms.js';
 
+const THEME_STORAGE_KEY = 'theme';
+
 const routes = {
     '/': LoginView,
     '/login': LoginView,
@@ -11,6 +13,36 @@ const routes = {
     '/dashboard': DashboardView,
     '/profile': ProfileView,
     '/terms': TermsView
+};
+
+const getStoredTheme = () => {
+    const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+    return storedTheme === 'light' ? 'light' : 'dark';
+};
+
+const setTheme = (theme) => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+
+    const labelElements = document.querySelectorAll('.theme-toggle-label');
+    labelElements.forEach((labelElement) => {
+        labelElement.textContent = theme === 'light' ? 'Dark' : 'Light';
+    });
+};
+
+const initializeTheme = () => {
+    setTheme(getStoredTheme());
+};
+
+const setupThemeToggle = () => {
+    const toggleButtons = document.querySelectorAll('#theme-toggle-btn');
+    toggleButtons.forEach((toggleButton) => {
+        toggleButton.onclick = () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+            const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            setTheme(nextTheme);
+        };
+    });
 };
 
 const router = async () => {
@@ -28,6 +60,7 @@ const router = async () => {
 
     try {
         content.innerHTML = await view.render();
+        setupThemeToggle();
         if (view.afterRender) await view.afterRender();
     } catch (error) {
         console.error('Error rendering view:', error);
@@ -37,4 +70,7 @@ const router = async () => {
 };
 
 window.addEventListener('hashchange', router);
-window.addEventListener('load', router);
+window.addEventListener('load', () => {
+    initializeTheme();
+    router();
+});
