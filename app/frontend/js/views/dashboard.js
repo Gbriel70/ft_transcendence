@@ -57,7 +57,7 @@ const DashboardView = {
                     </a>
                     <div class="navbar-actions">
                         <div class="navbar-user-profile">
-                            ${user.profile_picture 
+                            ${user.profile_picture
                                 ? `<img src="${user.profile_picture}" alt="${user.name}" class="navbar-avatar">`
                                 : `<div class="navbar-avatar navbar-avatar-fallback">${(user.name || 'U')[0].toUpperCase()}</div>`
                             }
@@ -224,7 +224,7 @@ const DashboardView = {
                 // Check for mock data first
                 const mockDataStr = localStorage.getItem('mockData');
                 let mockData = null;
-                
+
                 if (mockDataStr) {
                     try {
                         mockData = JSON.parse(mockDataStr);
@@ -243,7 +243,7 @@ const DashboardView = {
                         console.error('Failed to load profile:', err);
                         return null;
                     });
-                    
+
                     if (profile && profile.balance !== undefined && profile.balance !== null) {
                         balanceEl.textContent = parseFloat(profile.balance).toFixed(2);
                     } else {

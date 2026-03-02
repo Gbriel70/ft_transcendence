@@ -60,16 +60,16 @@ const ProfileView = {
                     <div class="card-modern profile-avatar-card">
                         <div class="avatar-upload-container">
                             <div class="profile-avatar-preview">
-                                ${user.profile_picture 
+                                ${user.profile_picture
                                     ? `<img id="avatar-preview" src="${user.profile_picture}" alt="${profileName}" class="avatar-img">`
                                     : `<div id="avatar-preview" class="avatar-fallback">${(profileName || 'U')[0].toUpperCase()}</div>`
                                 }
                             </div>
                             <div class="avatar-upload-input-wrapper">
-                                <input 
-                                    type="file" 
-                                    class="avatar-upload-input" 
-                                    id="profile-picture" 
+                                <input
+                                    type="file"
+                                    class="avatar-upload-input"
+                                    id="profile-picture"
                                     accept="image/*"
                                 >
                                 <label for="profile-picture" class="btn-upload-photo">
@@ -93,11 +93,11 @@ const ProfileView = {
                         <form id="profile-form" class="form-modern">
                             <div class="form-group-modern">
                                 <label for="profile-name" class="form-label-modern">Full Name</label>
-                                <input 
-                                    type="text" 
-                                    class="form-input-modern" 
-                                    id="profile-name" 
-                                    value="${profileName}" 
+                                <input
+                                    type="text"
+                                    class="form-input-modern"
+                                    id="profile-name"
+                                    value="${profileName}"
                                     placeholder="Your full name"
                                     required
                                 >
@@ -114,20 +114,20 @@ const ProfileView = {
                         <form id="email-form" class="form-modern">
                             <div class="form-group-modern">
                                 <label for="current-email" class="form-label-modern">Current Email</label>
-                                <input 
-                                    type="email" 
-                                    class="form-input-modern" 
-                                    id="current-email" 
-                                    value="${user.email || ''}" 
+                                <input
+                                    type="email"
+                                    class="form-input-modern"
+                                    id="current-email"
+                                    value="${user.email || ''}"
                                     disabled
                                 >
                             </div>
                             <div class="form-group-modern">
                                 <label for="new-email" class="form-label-modern">New Email</label>
-                                <input 
-                                    type="email" 
-                                    class="form-input-modern" 
-                                    id="new-email" 
+                                <input
+                                    type="email"
+                                    class="form-input-modern"
+                                    id="new-email"
                                     placeholder="new@example.com"
                                     required
                                 >
@@ -144,33 +144,33 @@ const ProfileView = {
                         <form id="password-form" class="form-modern">
                             <div class="form-group-modern">
                                 <label for="current-password" class="form-label-modern">Current Password</label>
-                                <input 
-                                    type="password" 
-                                    class="form-input-modern" 
-                                    id="current-password" 
+                                <input
+                                    type="password"
+                                    class="form-input-modern"
+                                    id="current-password"
                                     placeholder="••••••••"
                                     required
                                 >
                             </div>
                             <div class="form-group-modern">
                                 <label for="new-password" class="form-label-modern">New Password</label>
-                                <input 
-                                    type="password" 
-                                    class="form-input-modern" 
-                                    id="new-password" 
+                                <input
+                                    type="password"
+                                    class="form-input-modern"
+                                    id="new-password"
                                     placeholder="••••••••"
-                                    required 
+                                    required
                                     minlength="6"
                                 >
                             </div>
                             <div class="form-group-modern">
                                 <label for="confirm-password" class="form-label-modern">Confirm Password</label>
-                                <input 
-                                    type="password" 
-                                    class="form-input-modern" 
-                                    id="confirm-password" 
+                                <input
+                                    type="password"
+                                    class="form-input-modern"
+                                    id="confirm-password"
                                     placeholder="••••••••"
-                                    required 
+                                    required
                                     minlength="6"
                                 >
                             </div>

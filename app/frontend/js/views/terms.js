@@ -39,7 +39,7 @@ const TermsView = {
                     <!-- Terms of Service Section -->
                     <section class="terms-section">
                         <h2>Terms of Service</h2>
-                        
+
                         <div class="terms-article">
                             <h3>1. Acceptance of Terms</h3>
                             <p>By accessing and using MiniBank, you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to abide by the above, please do not use this service.</p>
@@ -91,7 +91,7 @@ const TermsView = {
                     <!-- Privacy Policy Section -->
                     <section class="terms-section">
                         <h2>Privacy Policy</h2>
-                        
+
                         <div class="terms-article">
                             <h3>1. Information We Collect</h3>
                             <p>When you create a MiniBank account, we collect information such as:</p>

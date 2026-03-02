@@ -497,11 +497,11 @@ body {
     .grid-cols-3 {
         grid-template-columns: 1fr;
     }
-    
+
     .col-span-2 {
         grid-column: span 1;
     }
-    
+
     .navbar-email {
         display: none;
     }
