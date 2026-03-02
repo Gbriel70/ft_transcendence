@@ -209,7 +209,8 @@ EOF
 vault policy write transaction-service /tmp/transaction-policy.hcl >/dev/null 2>&1
 
 cat > /tmp/blockchain-policy.hcl <<'EOF'
-path "secret/data/blockchain" { capabilities = ["read"] }
+path "secret/data/blockchain" { capabilities = ["read", "create", "update"] }
+path "secret/data/wallets/*"  { capabilities = ["read", "create", "update"] }
 EOF
 vault policy write blockchain-service /tmp/blockchain-policy.hcl >/dev/null 2>&1
 

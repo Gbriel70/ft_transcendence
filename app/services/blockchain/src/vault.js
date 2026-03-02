@@ -22,15 +22,43 @@ async function getClient()
 async function getSecret(key)
 {
   const c = await getClient();
-  const path = process.env.VAULT_KV_PATH;
-  const res = await c.read(path);
+  const kvPath = process.env.VAULT_KV_PATH;
+  const res = await c.read(kvPath);
   return res.data.data[key];
 }
 
-async function initVault()
+async function savePrivateKey(userId, privateKey)
 {
-  process.env.DB_USER = process.env.DB_USER || (await getSecret('db_user'));
-  process.env.DB_PASSWORD = process.env.DB_PASSWORD || (await getSecret('db_password'));
+  const c = await getClient();
+  const kvPath = `secret/data/wallets/${userId}`;
+
+  await c.write(kvPath, 
+  {
+    data: 
+    {
+      private_key: privateKey,
+      created_at: new Date().toISOString()
+    }
+  });
+
+  console.log(`Private key saved for user ${userId}`);
 }
 
-module.exports = { initVault, getSecret };
+async function getPrivateKey(userId)
+{
+  const c = await getClient();
+  const kvPath = `secret/data/wallets/${userId}`;
+  const res = await c.read(kvPath);
+  return res.data.data.private_key;
+}
+
+async function getServiceConfig()
+{
+  const hardhatUrl = process.env.HARDHAT_URL || 'http://hardhat:8545';
+  const contractAddress = await getSecret('contract_address');
+  const port = parseInt(process.env.SERVICE_PORT) || 3004;
+
+  return { hardhatUrl, contractAddress, port };
+}
+
+module.exports = { getSecret, savePrivateKey, getPrivateKey, getServiceConfig };

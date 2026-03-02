@@ -154,11 +154,10 @@ app.post('/users/me/wallet', authenticateToken, async (req, res) =>
   {
     const authUserId = req.user.id;
     
-    // Check if user already has a wallet
     const pool = await getPool();
     const checkResult = await pool.query
     (
-      'SELECT wallet_address FROM user_profiles WHERE auth_user_id = $1',
+      'SELECT id, wallet_address FROM user_profiles WHERE auth_user_id = $1',
       [authUserId]
     );
 
@@ -172,14 +171,48 @@ app.post('/users/me/wallet', authenticateToken, async (req, res) =>
       return res.status(409).json({ error: 'User already has a wallet' });
     }
 
-    //###############################################################################################
-    // TODO: Call blockchain_service to create wallet and get address, then save to user_profiles 
-    // ##############################################################################################
-    
-    res.status(501).json
+    const profileId = checkResult.rows[0].id;
+
+    // Chamar blockchain_service para criar a wallet
+    const BLOCKCHAIN_URL = process.env.BLOCKCHAIN_URL || 'http://blockchain_service:3004';
+
+    console.log(`Calling blockchain_service to create wallet for user ${profileId}...`);
+
+    const blockchainRes = await fetch(`${BLOCKCHAIN_URL}/wallets`,
+    {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ user_id: profileId })
+    });
+
+    if (!blockchainRes.ok)
+    {
+      const errBody = await blockchainRes.json().catch(() => ({}));
+      console.error('blockchain_service error:', errBody);
+      return res.status(blockchainRes.status).json
+      ({ 
+        error: errBody.error || 'Failed to create wallet on blockchain' 
+      });
+    }
+
+    const blockchainData = await blockchainRes.json();
+    const walletAddress  = blockchainData.wallet_address;
+
+    // Salvar o wallet_address no banco de dados
+    const updateResult = await pool.query
+    (
+      'UPDATE user_profiles SET wallet_address = $1 WHERE auth_user_id = $2 RETURNING *',
+      [walletAddress, authUserId]
+    );
+
+    console.log(`Wallet created and saved: ${walletAddress}`);
+
+    res.status(201).json
     ({
-      message: 'Wallet creation not yet implemented',
-      note: 'This will be implemented when blockchain_service is ready'
+      message:        'Wallet created successfully',
+      wallet_address: walletAddress,
+      tx_hash:        blockchainData.tx_hash,
+      profile:        updateResult.rows[0]
     });
   } catch (error) 
   {
