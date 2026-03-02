@@ -1,8 +1,13 @@
 # ft_transcendence
 
+TODO:
+-can the theme toggle button change to little moon when it is in the light theme?
+-can we improve the the little sun and moon icons? maybe we can use the ones from the vercel project (/vercelDesignV6/components/theme-toggle.tsx) or we can create our own icons based on the ones from the vercel project. The icons should be simple and easy to understand. The sun icon should be a circle with rays coming out of it and the moon icon should be a crescent shape. The icons should be white in the dark theme and black in the light theme. The icons should also have a hover effect that changes their color to the primary color of the theme.
+-navibar is miss aligned on terms page. Minibank logo is not alligned withe the text/cards on the page.  So are the buttons on the right side of the navibar. They are too too the right and not alligned with the cards/text.
 
-can the theme toggle button change to little moon when it is in the light theme?
-can we improve the the little sun and moon icons? maybe we can use the ones from the vercel project (/vercelDesignV6/components/theme-toggle.tsx) or we can create our own icons based on the ones from the vercel project. The icons should be simple and easy to understand. The sun icon should be a circle with rays coming out of it and the moon icon should be a crescent shape. The icons should be white in the dark theme and black in the light theme. The icons should also have a hover effect that changes their color to the primary color of the theme.
+
+
+
 
 
 
