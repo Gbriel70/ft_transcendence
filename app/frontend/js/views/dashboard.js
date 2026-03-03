@@ -360,7 +360,7 @@ const DashboardView = {
                 try {
                     const result = await api.transfer(recipient, amount);
                     if (result && (result.success || result.id)) {
-                        alert('Transfer successful!');
+                        window.showNotification('Transfer successful!', 'success');
                         form.reset();
                         await loadData();
                     } else {
@@ -368,7 +368,7 @@ const DashboardView = {
                     }
                 } catch (error) {
                     console.error('Transfer failed', error);
-                    alert(`Transfer failed: ${error.message}`);
+                    window.showNotification(`Transfer failed: ${error.message}`, 'error');
                 }
             });
         }

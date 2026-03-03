@@ -122,7 +122,7 @@ const LoginView = {
                 }
             } catch (error) {
                 console.error('Login failed', error);
-                showNotification(`Login failed: ${error.message}`, 'error');
+                window.showNotification(`Login failed: ${error.message}`, 'error');
             }
         });
 
@@ -138,7 +138,7 @@ const LoginView = {
                 }
             } catch (error) {
                 console.error('2FA verification failed', error);
-                showNotification(`Invalid code: ${error.message}`, 'error');
+                window.showNotification(`Invalid code: ${error.message}`, 'error');
                 document.getElementById('totp-code').value = '';
                 document.getElementById('totp-code').focus();
             }

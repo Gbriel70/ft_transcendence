@@ -929,6 +929,120 @@ body {
     word-break: break-word;
 }
 
+/* ─── Toast Notifications ─────────────────────────────────────── */
+#toast-container {
+    position: fixed;
+    top: 1.25rem;
+    right: 1.25rem;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    pointer-events: none;
+}
+
+.toast {
+    pointer-events: all;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 280px;
+    max-width: 400px;
+    padding: 0.85rem 1rem;
+    border-radius: var(--radius);
+    border: 1px solid transparent;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    font-size: 0.875rem;
+    font-weight: 500;
+    position: relative;
+    overflow: hidden;
+
+    /* Enter/exit animation */
+    opacity: 0;
+    transform: translateX(110%);
+    transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.26, 0.64, 1);
+}
+
+.toast.toast-visible {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.toast.toast-hiding {
+    opacity: 0;
+    transform: translateX(110%);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+/* Type colours */
+.toast-success {
+    background: color-mix(in srgb, var(--status-success-bg) 80%, var(--bg-card));
+    border-color: var(--status-success-border);
+    color: var(--status-success-text);
+}
+
+.toast-error {
+    background: color-mix(in srgb, var(--status-danger-bg) 80%, var(--bg-card));
+    border-color: var(--status-danger-border);
+    color: var(--status-danger-text);
+}
+
+.toast-warning {
+    background: color-mix(in srgb, var(--status-warning-bg) 80%, var(--bg-card));
+    border-color: var(--status-warning-border);
+    color: var(--status-warning-text);
+}
+
+.toast-info {
+    background: color-mix(in srgb, rgba(23, 181, 186, 0.12) 80%, var(--bg-card));
+    border-color: rgba(23, 181, 186, 0.35);
+    color: var(--primary);
+}
+
+.toast-icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+}
+
+.toast-message {
+    flex: 1;
+    line-height: 1.4;
+    color: var(--text-primary);
+}
+
+.toast-close {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.2rem;
+    border-radius: 0.25rem;
+    color: var(--text-secondary);
+    opacity: 0.7;
+    transition: opacity 0.15s;
+}
+
+.toast-close:hover {
+    opacity: 1;
+}
+
+/* Progress bar */
+.toast-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    width: 100%;
+    border-radius: 0 0 var(--radius) var(--radius);
+    background: currentColor;
+    opacity: 0.4;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .auth-form-wrapper {

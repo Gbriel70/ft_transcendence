@@ -99,19 +99,19 @@ const RegisterView = {
             const confirmPassword = document.getElementById('confirm-password').value;
 
             if (password !== confirmPassword) {
-                alert('Passwords do not match.');
+                window.showNotification('Passwords do not match.', 'warning');
                 return;
             }
 
             try {
                 const result = await api.register(username, email, password);
                 if (result.success) {
-                    alert('Registration successful! Logging you in...');
-                    window.location.hash = '/dashboard';
+                    window.showNotification('Account created! Redirecting to login...', 'success');
+                    setTimeout(() => { window.location.hash = '/login'; }, 1800);
                 }
             } catch (error) {
                 console.error('Register failed', error);
-                alert(`Register failed: ${error.message}`);
+                window.showNotification(`Registration failed: ${error.message}`, 'error');
             }
         });
     }

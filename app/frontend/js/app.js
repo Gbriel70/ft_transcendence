@@ -1,18 +1,15 @@
-import LoginView from './views/login.js';
-import RegisterView from './views/register.js';
-import DashboardView from './views/dashboard.js';
-import ProfileView from './views/profile.js';
-import TermsView from './views/terms.js';
+// v5 — dynamic imports bust nginx's 1-year immutable cache on view files
+const V = '?v=7';
 
 const THEME_STORAGE_KEY = 'theme';
 
 const routes = {
-    '/': LoginView,
-    '/login': LoginView,
-    '/register': RegisterView,
-    '/dashboard': DashboardView,
-    '/profile': ProfileView,
-    '/terms': TermsView
+    '/':          () => import('./views/login.js'     + V),
+    '/login':     () => import('./views/login.js'     + V),
+    '/register':  () => import('./views/register.js'  + V),
+    '/dashboard': () => import('./views/dashboard.js' + V),
+    '/profile':   () => import('./views/profile.js'   + V),
+    '/terms':     () => import('./views/terms.js'     + V),
 };
 
 const getStoredTheme = () => {
@@ -51,14 +48,16 @@ const router = async () => {
 
     if (request === '') request = '/';
 
-    const view = routes[request];
+    const loader = routes[request];
 
-    if (!view) {
+    if (!loader) {
         content.innerHTML = '<h1>404 Error - Page Not Found</h1>';
         return;
     }
 
     try {
+        const module = await loader();
+        const view = module.default;
         content.innerHTML = await view.render();
         setupThemeToggle();
         if (view.afterRender) await view.afterRender();

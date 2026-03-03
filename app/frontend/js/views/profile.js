@@ -303,13 +303,13 @@ const ProfileView = {
                 const picture = pictureInput && pictureInput.files.length > 0 ? pictureInput.files[0] : null;
 
                 if (!picture) {
-                    showNotification('Please select a photo first.', 'warning');
+                    window.showNotification('Please select a photo first.', 'warning');
                     return;
                 }
 
                 try {
                     await api.updateProfile(undefined, picture);
-                    showNotification('Profile photo updated successfully!', 'success');
+                    window.showNotification('Profile photo updated successfully!', 'success');
 
                     const updatedUser = api.getCurrentUser();
                     const avatarEl = document.getElementById('avatar-preview');
@@ -320,7 +320,7 @@ const ProfileView = {
                     if (pictureInput) pictureInput.value = '';
                     if (selectedPhotoNameEl) selectedPhotoNameEl.textContent = 'No file selected';
                 } catch (error) {
-                    showNotification(`Error updating profile photo: ${error.message}`, 'error');
+                    window.showNotification(`Error updating profile photo: ${error.message}`, 'error');
                 }
             });
         }
@@ -332,15 +332,15 @@ const ProfileView = {
                 const name = document.getElementById('profile-name').value.trim();
 
                 if (!name) {
-                    showNotification('Name cannot be empty.', 'warning');
+                    window.showNotification('Name cannot be empty.', 'warning');
                     return;
                 }
 
                 try {
                     await api.updateProfile(name);
-                    showNotification('Name updated successfully!', 'success');
+                    window.showNotification('Name updated successfully!', 'success');
                 } catch (error) {
-                    showNotification(`Error updating name: ${error.message}`, 'error');
+                    window.showNotification(`Error updating name: ${error.message}`, 'error');
                 }
             });
         }
@@ -354,11 +354,11 @@ const ProfileView = {
 
                 try {
                     await api.changeEmail(newEmail);
-                    showNotification('Email updated successfully!', 'success');
+                    window.showNotification('Email updated successfully!', 'success');
                     document.getElementById('current-email').value = newEmail;
                     document.getElementById('new-email').value = '';
                 } catch (error) {
-                    showNotification(`Error updating email: ${error.message}`, 'error');
+                    window.showNotification(`Error updating email: ${error.message}`, 'error');
                 }
             });
         }
@@ -373,16 +373,16 @@ const ProfileView = {
                 const confirmPassword = document.getElementById('confirm-password').value;
 
                 if (newPassword !== confirmPassword) {
-                    showNotification('New passwords do not match.', 'warning');
+                    window.showNotification('New passwords do not match.', 'warning');
                     return;
                 }
 
                 try {
                     await api.changePassword(currentPassword, newPassword);
-                    showNotification('Password changed successfully!', 'success');
+                    window.showNotification('Password changed successfully!', 'success');
                     passwordForm.reset();
                 } catch (error) {
-                    showNotification(`Error changing password: ${error.message}`, 'error');
+                    window.showNotification(`Error changing password: ${error.message}`, 'error');
                 }
             });
         }
@@ -403,7 +403,7 @@ const ProfileView = {
                     actionButtons.style.display = 'none';
                     setupSection.style.display = 'block';
                 } catch (error) {
-                    showNotification(`Error starting 2FA setup: ${error.message}`, 'error');
+                    window.showNotification(`Error starting 2FA setup: ${error.message}`, 'error');
                 }
             });
         }
@@ -412,13 +412,13 @@ const ProfileView = {
         if (confirmBtn) {
             confirmBtn.addEventListener('click', async () => {
                 const code = document.getElementById('twofa-verify-code').value.trim();
-                if (!code) { showNotification('Please enter the 6-digit code.', 'warning'); return; }
+                if (!code) { window.showNotification('Please enter the 6-digit code.', 'warning'); return; }
                 try {
                     await api.verify2FA(code);
-                    showNotification('2FA enabled successfully! Your account is now protected.', 'success');
+                    window.showNotification('2FA enabled successfully! Your account is now protected.', 'success');
                     window.location.hash = '/profile';
                 } catch (error) {
-                    showNotification(`Error: ${error.message}`, 'error');
+                    window.showNotification(`Error: ${error.message}`, 'error');
                 }
             });
         }
@@ -442,13 +442,13 @@ const ProfileView = {
         if (disableConfirmBtn) {
             disableConfirmBtn.addEventListener('click', async () => {
                 const code = document.getElementById('twofa-disable-code').value.trim();
-                if (!code) { showNotification('Please enter your current 6-digit code.', 'warning'); return; }
+                if (!code) { window.showNotification('Please enter your current 6-digit code.', 'warning'); return; }
                 try {
                     await api.disable2FA(code);
-                    showNotification('2FA disabled successfully.', 'success');
+                    window.showNotification('2FA disabled successfully.', 'success');
                     window.location.hash = '/profile';
                 } catch (error) {
-                    showNotification(`Error: ${error.message}`, 'error');
+                    window.showNotification(`Error: ${error.message}`, 'error');
                 }
             });
         }
