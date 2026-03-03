@@ -1,0 +1,22 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache python3 make g++ git netcat-openbsd curl
+
+COPY package.json ./
+
+RUN npm install
+
+COPY hardhat.config.js ./
+COPY contracts ./contracts
+COPY scripts ./scripts
+
+RUN mkdir -p test cache artifacts
+
+EXPOSE 8545
+
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+CMD ["/docker-entrypoint.sh"]

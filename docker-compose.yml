@@ -5,6 +5,8 @@ services:
       context: ./app/vault
       dockerfile: dockerfile
     container_name: vault
+    ports:
+      - "8200:8200"
     volumes:
       - vault_data:/vault/data
       - vault_logs:/vault/logs
@@ -42,6 +44,34 @@ services:
       retries: 5
     restart: unless-stopped
 
+  #==================== HARDHAT NODE =======================#
+  hardhat:
+    build:
+      context: ./app/services/blockchain/hardhat
+      dockerfile: dockerfile
+    container_name: hardhat
+    environment:
+      VAULT_ADDR: http://vault:8200
+      VAULT_KV_PATH: secret/data/blockchain
+      VAULT_ROLE_ID_FILE: /vault-keys/approles/blockchain_role_id
+      VAULT_SECRET_ID_FILE: /vault-keys/approles/blockchain_secret_id
+    ports:
+      - "8545:8545"
+    volumes:
+      - vault_data:/vault-keys:ro
+      - hardhat_artifacts:/app/artifacts
+    depends_on:
+      vault:
+        condition: service_healthy
+    networks:
+      - minibank-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "8545"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   #==================== AUTH SERVICE  ====================
   auth_service:
     build:
@@ -71,6 +101,7 @@ services:
     container_name: user_service
     environment:
       VAULT_ADDR: http://vault:8200
+      BLOCKCHAIN_URL: http://blockchain_service:3004
       SERVICE_NAME: user
     volumes:
       - vault_data:/vault-keys:ro
@@ -112,13 +143,21 @@ services:
     container_name: blockchain_service
     environment:
       VAULT_ADDR: http://vault:8200
+      VAULT_KV_PATH: secret/data/blockchain
+      VAULT_ROLE_ID_FILE: /vault-keys/approles/blockchain_role_id
+      VAULT_SECRET_ID_FILE: /vault-keys/approles/blockchain_secret_id
       SERVICE_NAME: blockchain
+      HARDHAT_URL: http://hardhat:8545
+      SERVICE_PORT: "3004"
+    ports:
+      - "3004:3004"
     volumes:
       - vault_data:/vault-keys:ro
+      - hardhat_artifacts:/app/artifacts:ro
     depends_on:
       vault:
         condition: service_healthy
-      postgres:
+      hardhat:
         condition: service_healthy
       auth_service:
         condition: service_started
@@ -253,3 +292,4 @@ volumes:
   vault_logs:
   grafana_data:
   uploads_data:
+  hardhat_artifacts:
