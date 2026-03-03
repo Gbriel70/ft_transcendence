@@ -7,7 +7,7 @@
 #### - Major: Standard user management and authentication. [X]
   - Users can update their profile information. [X]
   - Users can upload an avatar (with a default avatar if none provided). [X]
-  - Users can add other users as friends and see their online status. [Ongoing]
+  - Users can add other users as friends and see their online status. [Pending]
   - Users have a profile page displaying their information. [check_if_we_dont_need_anything_else_here]
 #### - Minor: Implement remote authentication with OAuth 2.0 (Google, GitHub, 42, etc.).
 #### - Minor: Implement a complete 2FA (Two-Factor Authentication) system for the users.
@@ -32,7 +32,7 @@
 
 #### - Major: Monitoring system with Prometheus and Grafana. [X]
   - Set up Prometheus to collect metrics. [X]
-  - Configure exporters and integrations. [needs_update]
+  - Configure exporters and integrations. [needs_update] update blockchain exporter
   - Create custom Grafana dashboards. [needs_update]
   - Set up alerting rules. [needs_update]
   - Secure access to Grafana. [Ongoing] [Grafana is directly exposed on host port 3000 (not only through Nginx/TLS): docker-compose.yml:187. We dont have Grafana proxy/access-control rules in Nginx config, so the “secured via Nginx” claim in docs appears outdated: default.conf, MONITORING.md:183-196 . Harden this now - remove direct 3000 publish and route Grafana through Nginx HTTPS with IP allowlist/auth]
@@ -62,7 +62,7 @@
 | Implement a complete 2FA (Two-Factor Authentication) system for the users | Minor | Pending |
 | GDPR compliance features | Minor | Pending |
 |||
-| Users can add other users as friends and see their online status | Sub-task | Ongoing |
+| Users can add other users as friends and see their online status | Sub-task | Pending |
 | Users have a profile page displaying their information | Sub-task | O que temos conta? |
 | Configure exporters and integrations | Sub-task | needs update |
 | Create custom Grafana dashboards | Sub-task | needs update |
