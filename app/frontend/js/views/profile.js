@@ -10,6 +10,8 @@ const ProfileView = {
         }
 
         const profileName = user.name || user.username || '';
+        const twoFAStatus = await api.get2FAStatus().catch(() => ({ enabled: false }));
+        const twoFAEnabled = twoFAStatus.enabled;
 
         return `
             <!-- Background Decoration -->
@@ -190,6 +192,54 @@ const ProfileView = {
                             <button type="submit" class="btn-primary-modern">Update Password</button>
                         </form>
                     </div>
+
+                    <!-- Two-Factor Authentication -->
+                    <div class="card-modern" id="twofa-card">
+                        <div class="card-header-modern">
+                            <h2>Two-Factor Authentication</h2>
+                        </div>
+                        <div class="form-modern">
+                            <p style="color:var(--text-secondary);margin-bottom:1rem;">
+                                ${twoFAEnabled
+                                    ? '2FA is currently <strong style="color:#17b5ba;">enabled</strong>. Your account is protected.'
+                                    : '2FA is currently <strong style="color:#e05;">disabled</strong>. Add an extra layer of security with an authenticator app.'}
+                            </p>
+
+                            <!-- Setup flow (hidden by default) -->
+                            <div id="twofa-setup-section" style="display:none;">
+                                <p class="form-label-modern" style="margin-bottom:.5rem;">Scan the QR code with your authenticator app (Google Authenticator, Authy, etc.):</p>
+                                <div style="text-align:center;margin:1rem 0;">
+                                    <img id="twofa-qr-img" src="" alt="QR Code" style="width:180px;height:180px;border-radius:8px;">
+                                </div>
+                                <p class="form-label-modern" style="margin-bottom:.25rem;">Or enter the secret manually:</p>
+                                <code id="twofa-secret-text" style="font-size:.85rem;word-break:break-all;color:var(--text-secondary);"></code>
+                                <div class="form-group-modern" style="margin-top:1rem;">
+                                    <label for="twofa-verify-code" class="form-label-modern">Enter the 6-digit code to confirm</label>
+                                    <input type="text" class="form-input-modern" id="twofa-verify-code" placeholder="123456" maxlength="6" autocomplete="one-time-code">
+                                </div>
+                                <button type="button" id="twofa-confirm-btn" class="btn-primary-modern">Confirm & Enable</button>
+                                <button type="button" id="twofa-cancel-btn" class="btn-icon" style="margin-left:.75rem;">Cancel</button>
+                            </div>
+
+                            <!-- Disable flow (hidden by default) -->
+                            <div id="twofa-disable-section" style="display:none;">
+                                <div class="form-group-modern">
+                                    <label for="twofa-disable-code" class="form-label-modern">Enter your current 6-digit code to disable 2FA</label>
+                                    <input type="text" class="form-input-modern" id="twofa-disable-code" placeholder="123456" maxlength="6" autocomplete="one-time-code">
+                                </div>
+                                <button type="button" id="twofa-disable-confirm-btn" class="btn-primary-modern" style="background:var(--danger,#e05);">Confirm Disable</button>
+                                <button type="button" id="twofa-disable-cancel-btn" class="btn-icon" style="margin-left:.75rem;">Cancel</button>
+                            </div>
+
+                            <!-- Action buttons -->
+                            <div id="twofa-action-buttons">
+                                ${twoFAEnabled
+                                    ? `<button type="button" id="twofa-disable-btn" class="btn-primary-modern" style="background:var(--danger,#e05);">Disable 2FA</button>`
+                                    : `<button type="button" id="twofa-enable-btn" class="btn-primary-modern">Enable 2FA</button>`
+                                }
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </main>
 
@@ -253,13 +303,13 @@ const ProfileView = {
                 const picture = pictureInput && pictureInput.files.length > 0 ? pictureInput.files[0] : null;
 
                 if (!picture) {
-                    alert('Please select a photo first.');
+                    showNotification('Please select a photo first.', 'warning');
                     return;
                 }
 
                 try {
                     await api.updateProfile(undefined, picture);
-                    alert('Profile photo updated successfully!');
+                    showNotification('Profile photo updated successfully!', 'success');
 
                     const updatedUser = api.getCurrentUser();
                     const avatarEl = document.getElementById('avatar-preview');
@@ -270,7 +320,7 @@ const ProfileView = {
                     if (pictureInput) pictureInput.value = '';
                     if (selectedPhotoNameEl) selectedPhotoNameEl.textContent = 'No file selected';
                 } catch (error) {
-                    alert(`Error updating profile photo: ${error.message}`);
+                    showNotification(`Error updating profile photo: ${error.message}`, 'error');
                 }
             });
         }
@@ -282,15 +332,15 @@ const ProfileView = {
                 const name = document.getElementById('profile-name').value.trim();
 
                 if (!name) {
-                    alert('Name cannot be empty.');
+                    showNotification('Name cannot be empty.', 'warning');
                     return;
                 }
 
                 try {
                     await api.updateProfile(name);
-                    alert('Name updated successfully!');
+                    showNotification('Name updated successfully!', 'success');
                 } catch (error) {
-                    alert(`Error updating name: ${error.message}`);
+                    showNotification(`Error updating name: ${error.message}`, 'error');
                 }
             });
         }
@@ -304,11 +354,11 @@ const ProfileView = {
 
                 try {
                     await api.changeEmail(newEmail);
-                    alert('Email updated successfully!');
+                    showNotification('Email updated successfully!', 'success');
                     document.getElementById('current-email').value = newEmail;
                     document.getElementById('new-email').value = '';
                 } catch (error) {
-                    alert(`Error updating email: ${error.message}`);
+                    showNotification(`Error updating email: ${error.message}`, 'error');
                 }
             });
         }
@@ -323,17 +373,91 @@ const ProfileView = {
                 const confirmPassword = document.getElementById('confirm-password').value;
 
                 if (newPassword !== confirmPassword) {
-                    alert('New passwords do not match.');
+                    showNotification('New passwords do not match.', 'warning');
                     return;
                 }
 
                 try {
                     await api.changePassword(currentPassword, newPassword);
-                    alert('Password changed successfully!');
+                    showNotification('Password changed successfully!', 'success');
                     passwordForm.reset();
                 } catch (error) {
-                    alert(`Error changing password: ${error.message}`);
+                    showNotification(`Error changing password: ${error.message}`, 'error');
                 }
+            });
+        }
+
+        // ─── 2FA logic ───────────────────────────────────────────────────────
+        const enableBtn   = document.getElementById('twofa-enable-btn');
+        const disableBtn  = document.getElementById('twofa-disable-btn');
+        const setupSection   = document.getElementById('twofa-setup-section');
+        const disableSection = document.getElementById('twofa-disable-section');
+        const actionButtons  = document.getElementById('twofa-action-buttons');
+
+        if (enableBtn) {
+            enableBtn.addEventListener('click', async () => {
+                try {
+                    const data = await api.setup2FA();
+                    document.getElementById('twofa-qr-img').src = data.qrCode;
+                    document.getElementById('twofa-secret-text').textContent = data.secret;
+                    actionButtons.style.display = 'none';
+                    setupSection.style.display = 'block';
+                } catch (error) {
+                    showNotification(`Error starting 2FA setup: ${error.message}`, 'error');
+                }
+            });
+        }
+
+        const confirmBtn = document.getElementById('twofa-confirm-btn');
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', async () => {
+                const code = document.getElementById('twofa-verify-code').value.trim();
+                if (!code) { showNotification('Please enter the 6-digit code.', 'warning'); return; }
+                try {
+                    await api.verify2FA(code);
+                    showNotification('2FA enabled successfully! Your account is now protected.', 'success');
+                    window.location.hash = '/profile';
+                } catch (error) {
+                    showNotification(`Error: ${error.message}`, 'error');
+                }
+            });
+        }
+
+        const cancelSetupBtn = document.getElementById('twofa-cancel-btn');
+        if (cancelSetupBtn) {
+            cancelSetupBtn.addEventListener('click', () => {
+                setupSection.style.display = 'none';
+                actionButtons.style.display = 'block';
+            });
+        }
+
+        if (disableBtn) {
+            disableBtn.addEventListener('click', () => {
+                actionButtons.style.display = 'none';
+                disableSection.style.display = 'block';
+            });
+        }
+
+        const disableConfirmBtn = document.getElementById('twofa-disable-confirm-btn');
+        if (disableConfirmBtn) {
+            disableConfirmBtn.addEventListener('click', async () => {
+                const code = document.getElementById('twofa-disable-code').value.trim();
+                if (!code) { showNotification('Please enter your current 6-digit code.', 'warning'); return; }
+                try {
+                    await api.disable2FA(code);
+                    showNotification('2FA disabled successfully.', 'success');
+                    window.location.hash = '/profile';
+                } catch (error) {
+                    showNotification(`Error: ${error.message}`, 'error');
+                }
+            });
+        }
+
+        const disableCancelBtn = document.getElementById('twofa-disable-cancel-btn');
+        if (disableCancelBtn) {
+            disableCancelBtn.addEventListener('click', () => {
+                disableSection.style.display = 'none';
+                actionButtons.style.display = 'block';
             });
         }
     }

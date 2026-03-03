@@ -71,6 +71,9 @@ async function initDatabase()
         );
 
         CREATE INDEX IF NOT EXISTS idx_user_auth_email ON user_auth(email);
+
+        ALTER TABLE user_auth ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(255);
+        ALTER TABLE user_auth ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
     `;
 
     try 

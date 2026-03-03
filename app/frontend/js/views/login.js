@@ -47,6 +47,32 @@ const LoginView = {
                         </button>
                     </form>
 
+                    <!-- 2FA step (hidden initially) -->
+                    <form id="twofa-form" class="form-modern" style="display:none;">
+                        <div style="text-align:center;margin-bottom:1rem;">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#17b5ba" stroke-width="1.5">
+                                <rect x="5" y="11" width="14" height="10" rx="2" ry="2"></rect>
+                                <path d="M8 11V7a4 4 0 0 1 8 0v4"></path>
+                            </svg>
+                            <p style="color:var(--text-secondary);margin-top:.5rem;font-size:.9rem;">Enter the 6-digit code from your authenticator app</p>
+                        </div>
+                        <div class="form-group-modern">
+                            <label for="totp-code" class="form-label-modern">Authenticator Code</label>
+                            <input
+                                type="text"
+                                class="form-input-modern"
+                                id="totp-code"
+                                placeholder="123456"
+                                maxlength="6"
+                                autocomplete="one-time-code"
+                                inputmode="numeric"
+                                required
+                            >
+                        </div>
+                        <button type="submit" class="btn-primary-modern">Verify</button>
+                        <button type="button" id="twofa-back-btn" class="btn-icon" style="margin-top:.5rem;width:100%;justify-content:center;">← Back to login</button>
+                    </form>
+
                     <div class="auth-footer">
                         <p>Don't have an account? <a href="#/register">Create one</a></p>
                     </div>
@@ -68,21 +94,61 @@ const LoginView = {
         `;
     },
     afterRender: async () => {
-        document.getElementById('login-form').addEventListener('submit', async (e) => {
+        let tempToken = null;
+
+        const loginForm  = document.getElementById('login-form');
+        const twofaForm  = document.getElementById('twofa-form');
+        const backBtn    = document.getElementById('twofa-back-btn');
+
+        loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const email = document.getElementById('email').value;
+            const email    = document.getElementById('email').value;
             const password = document.getElementById('password').value;
 
             try {
                 const result = await api.login(email, password);
+
+                if (result.requires2FA) {
+                    // Store temp token and switch to 2FA step
+                    tempToken = result.tempToken;
+                    loginForm.style.display = 'none';
+                    twofaForm.style.display = 'block';
+                    document.getElementById('totp-code').focus();
+                    return;
+                }
+
                 if (result.success) {
-                    console.log('Login successful', result);
                     window.location.hash = '/dashboard';
                 }
             } catch (error) {
                 console.error('Login failed', error);
-                alert(`Login failed: ${error.message}`);
+                showNotification(`Login failed: ${error.message}`, 'error');
             }
+        });
+
+        twofaForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const code = document.getElementById('totp-code').value.trim();
+            if (!code) return;
+
+            try {
+                const result = await api.authenticate2FA(tempToken, code);
+                if (result.success) {
+                    window.location.hash = '/dashboard';
+                }
+            } catch (error) {
+                console.error('2FA verification failed', error);
+                showNotification(`Invalid code: ${error.message}`, 'error');
+                document.getElementById('totp-code').value = '';
+                document.getElementById('totp-code').focus();
+            }
+        });
+
+        backBtn.addEventListener('click', () => {
+            tempToken = null;
+            twofaForm.style.display = 'none';
+            loginForm.style.display = 'block';
+            document.getElementById('totp-code').value = '';
         });
     }
 };

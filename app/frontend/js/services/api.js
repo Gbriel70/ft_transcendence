@@ -161,6 +161,67 @@ const api = {
             body: JSON.stringify({ currentPassword, newPassword })
         });
         return handleResponse(response);
+    },
+
+    // ─── 2FA ────────────────────────────────────────────────────────────────
+
+    get2FAStatus: async () => {
+        const response = await fetch(`${API_BASE}/auth/2fa/status`, {
+            headers: getHeaders()
+        });
+        return handleResponse(response);
+    },
+
+    setup2FA: async () => {
+        const response = await fetch(`${API_BASE}/auth/2fa/setup`, {
+            method: 'POST',
+            headers: getHeaders()
+        });
+        return handleResponse(response);
+    },
+
+    verify2FA: async (token) => {
+        const response = await fetch(`${API_BASE}/auth/2fa/verify`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ token })
+        });
+        return handleResponse(response);
+    },
+
+    disable2FA: async (token) => {
+        const response = await fetch(`${API_BASE}/auth/2fa/disable`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ token })
+        });
+        return handleResponse(response);
+    },
+
+    authenticate2FA: async (tempToken, token) => {
+        const response = await fetch(`${API_BASE}/auth/2fa/authenticate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tempToken, token })
+        });
+        const data = await handleResponse(response);
+        if (data.token) {
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('user', JSON.stringify(data.user));
+            try {
+                const profileRes = await fetch(`${API_BASE}/users/me`, {
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` }
+                });
+                if (profileRes.ok) {
+                    const profile = await profileRes.json();
+                    const fullUser = { ...data.user, name: profile.name || data.user.name, profile_picture: profile.profile_picture || null };
+                    localStorage.setItem('user', JSON.stringify(fullUser));
+                }
+            } catch (e) {
+                console.warn('Could not fetch full profile after 2FA login:', e);
+            }
+        }
+        return { success: true, ...data };
     }
 };
 

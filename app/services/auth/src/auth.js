@@ -1,6 +1,8 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const speakeasy = require('speakeasy');
+const QRCode = require('qrcode');
 const client = require('prom-client');
 const { getPool, initDatabase } = require('./db');
 const vaultClient = require('./vault');
@@ -186,6 +188,17 @@ app.post('/login', async (req, res) =>
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    // If 2FA is enabled, return a short-lived temp token instead of a full JWT
+    if (user.totp_enabled)
+    {
+      const tempToken = jwt.sign(
+        { id: user.id, twoFactorPending: true },
+        config.jwt.secret,
+        { expiresIn: '5m', algorithm: config.jwt.algorithm }
+      );
+      return res.json({ requires2FA: true, tempToken });
+    }
+
     // USE JWT CONFIG FROM VAULT
     const token = jwt.sign
     (
@@ -313,6 +326,168 @@ app.put('/change-password', async (req, res) =>
       return res.status(403).json({ error: 'Invalid token' });
     }
     console.error('Error updating password:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── 2FA helpers ────────────────────────────────────────────────────────────
+
+function requireAuth(req, res)
+{
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) { res.status(401).json({ error: 'Access token required' }); return null; }
+  try { return jwt.verify(token, config.jwt.secret); }
+  catch (e) { res.status(403).json({ error: 'Invalid token' }); return null; }
+}
+
+// POST /2fa/setup — generate TOTP secret + QR code (user must be authenticated)
+app.post('/2fa/setup', async (req, res) =>
+{
+  try
+  {
+    const decoded = requireAuth(req, res);
+    if (!decoded) return;
+
+    const pool = await getPool();
+    const result = await pool.query('SELECT email, totp_enabled FROM user_auth WHERE id = $1', [decoded.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+    const user = result.rows[0];
+    if (user.totp_enabled) return res.status(400).json({ error: '2FA is already enabled' });
+
+    const secret = speakeasy.generateSecret({ name: `MiniBank (${user.email})`, length: 20 });
+
+    // Store secret temporarily (not yet enabled)
+    await pool.query('UPDATE user_auth SET totp_secret = $1, totp_enabled = FALSE WHERE id = $2', [secret.base32, decoded.id]);
+
+    const qrCodeDataUrl = await QRCode.toDataURL(secret.otpauth_url);
+
+    res.json({ secret: secret.base32, qrCode: qrCodeDataUrl });
+  }
+  catch (error)
+  {
+    console.error('Error setting up 2FA:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /2fa/verify — confirm a TOTP code and activate 2FA
+app.post('/2fa/verify', async (req, res) =>
+{
+  try
+  {
+    const decoded = requireAuth(req, res);
+    if (!decoded) return;
+
+    const { token: totpToken } = req.body;
+    if (!totpToken) return res.status(400).json({ error: 'TOTP token required' });
+
+    const pool = await getPool();
+    const result = await pool.query('SELECT totp_secret FROM user_auth WHERE id = $1', [decoded.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+    const { totp_secret } = result.rows[0];
+    if (!totp_secret) return res.status(400).json({ error: 'Run /2fa/setup first' });
+
+    const valid = speakeasy.totp.verify({ secret: totp_secret, encoding: 'base32', token: totpToken, window: 1 });
+    if (!valid) return res.status(400).json({ error: 'Invalid TOTP code' });
+
+    await pool.query('UPDATE user_auth SET totp_enabled = TRUE WHERE id = $1', [decoded.id]);
+    res.json({ message: '2FA enabled successfully' });
+  }
+  catch (error)
+  {
+    console.error('Error verifying 2FA:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /2fa/disable — turn off 2FA (requires valid TOTP code as confirmation)
+app.post('/2fa/disable', async (req, res) =>
+{
+  try
+  {
+    const decoded = requireAuth(req, res);
+    if (!decoded) return;
+
+    const { token: totpToken } = req.body;
+    if (!totpToken) return res.status(400).json({ error: 'TOTP token required to disable 2FA' });
+
+    const pool = await getPool();
+    const result = await pool.query('SELECT totp_secret, totp_enabled FROM user_auth WHERE id = $1', [decoded.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+    const { totp_secret, totp_enabled } = result.rows[0];
+    if (!totp_enabled) return res.status(400).json({ error: '2FA is not enabled' });
+
+    const valid = speakeasy.totp.verify({ secret: totp_secret, encoding: 'base32', token: totpToken, window: 1 });
+    if (!valid) return res.status(400).json({ error: 'Invalid TOTP code' });
+
+    await pool.query('UPDATE user_auth SET totp_secret = NULL, totp_enabled = FALSE WHERE id = $1', [decoded.id]);
+    res.json({ message: '2FA disabled successfully' });
+  }
+  catch (error)
+  {
+    console.error('Error disabling 2FA:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /2fa/authenticate — complete login by validating TOTP code (uses temp token)
+app.post('/2fa/authenticate', async (req, res) =>
+{
+  try
+  {
+    const { tempToken, token: totpToken } = req.body;
+    if (!tempToken || !totpToken) return res.status(400).json({ error: 'tempToken and TOTP token required' });
+
+    let decoded;
+    try { decoded = jwt.verify(tempToken, config.jwt.secret); }
+    catch (e) { return res.status(403).json({ error: 'Invalid or expired temp token' }); }
+
+    if (!decoded.twoFactorPending) return res.status(403).json({ error: 'Invalid temp token' });
+
+    const pool = await getPool();
+    const result = await pool.query('SELECT id, email, name, totp_secret FROM user_auth WHERE id = $1', [decoded.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+    const user = result.rows[0];
+    const valid = speakeasy.totp.verify({ secret: user.totp_secret, encoding: 'base32', token: totpToken, window: 1 });
+    if (!valid) return res.status(400).json({ error: 'Invalid TOTP code' });
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email },
+      config.jwt.secret,
+      { expiresIn: config.jwt.expiresIn, algorithm: config.jwt.algorithm }
+    );
+
+    res.json({ message: 'Login successful', token, user: { id: user.id, email: user.email, name: user.name } });
+  }
+  catch (error)
+  {
+    console.error('Error in 2FA authenticate:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /2fa/status — check whether 2FA is enabled for the logged-in user
+app.get('/2fa/status', async (req, res) =>
+{
+  try
+  {
+    const decoded = requireAuth(req, res);
+    if (!decoded) return;
+
+    const pool = await getPool();
+    const result = await pool.query('SELECT totp_enabled FROM user_auth WHERE id = $1', [decoded.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+    res.json({ enabled: result.rows[0].totp_enabled });
+  }
+  catch (error)
+  {
+    console.error('Error checking 2FA status:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
