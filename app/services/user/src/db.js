@@ -3,6 +3,29 @@ const vaultClient = require('./vault');
 
 let pool;
 
+// WAIT FOR POSTGRES TO BE REACHABLE OVER TCP
+// (during docker-entrypoint-initdb.d execution postgres only listens on
+//  a Unix socket, so pg_isready passes but TCP connections are refused)
+async function waitForPostgres(host, port, maxAttempts = 30, delayMs = 3000)
+{
+    for (let attempt = 1; attempt <= maxAttempts; attempt++)
+    {
+        try
+        {
+            const testPool = new Pool({ host, port, database: 'postgres', user: 'admin', password: 'admin123', connectionTimeoutMillis: 3000 });
+            const client = await testPool.connect();
+            client.release();
+            await testPool.end();
+            return;
+        } catch (err)
+        {
+            console.log(`Waiting for PostgreSQL TCP (attempt ${attempt}/${maxAttempts}): ${err.message}`);
+            if (attempt === maxAttempts) { throw new Error(`PostgreSQL not reachable after ${maxAttempts} attempts`); }
+            await new Promise(r => setTimeout(r, delayMs));
+        }
+    }
+}
+
 // CREATE CONNECTION POOL
 async function createPool() 
 {
@@ -13,6 +36,9 @@ async function createPool()
     // SEARCH CONFIG FROM VAULT
     const config = await vaultClient.getServiceConfig();
     const { database } = config;
+
+    // Wait until postgres TCP port is accepting connections
+    await waitForPostgres(database.host, database.port);
 
     pool = new Pool
     ({
@@ -25,7 +51,7 @@ async function createPool()
         // Pool settings
         max: 20,
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 2000,
+        connectionTimeoutMillis: 5000,
     });
 
     // Event handlers

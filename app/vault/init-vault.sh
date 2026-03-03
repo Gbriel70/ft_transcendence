@@ -95,7 +95,7 @@ else
     vault operator init \
         -key-shares=5 \
         -key-threshold=3 \
-        -format=json > "$INIT_KEYS_FILE" 2>&1
+        -format=json > "$INIT_KEYS_FILE"
     
     if [ ! -s "$INIT_KEYS_FILE" ]; then
         log_error "Init failed!"
@@ -123,9 +123,9 @@ if [ "$ALREADY_INITIALIZED" = false ]; then
     fi
     
     cat > "$VAULT_KEYS_FILE" <<EOF
-VAULT_UNSEAL_KEY_1=$UNSEAL_KEY_1
-VAULT_UNSEAL_KEY_2=$UNSEAL_KEY_2
-VAULT_UNSEAL_KEY_3=$UNSEAL_KEY_3
+UNSEAL_KEY_1=$UNSEAL_KEY_1
+UNSEAL_KEY_2=$UNSEAL_KEY_2
+UNSEAL_KEY_3=$UNSEAL_KEY_3
 VAULT_ROOT_TOKEN=$ROOT_TOKEN
 EOF
     
@@ -146,30 +146,27 @@ if [ "$SEAL_STATUS" = "false" ]; then
     log_info "Already unsealed"
 else
     log_info "Unsealing (3/5 keys)..."
-    
-    vault operator unseal "$VAULT_UNSEAL_KEY_1" || true
-    vault operator unseal "$VAULT_UNSEAL_KEY_2" || true
-    vault operator unseal "$VAULT_UNSEAL_KEY_3" || true
+
+    if [ -z "$UNSEAL_KEY_1" ]; then
+        log_error "UNSEAL_KEY_1 is empty! Keys file content:"
+        cat "$VAULT_KEYS_FILE"
+        exit 1
+    fi
+
+    vault operator unseal "$UNSEAL_KEY_1"
+    vault operator unseal "$UNSEAL_KEY_2"
+    vault operator unseal "$UNSEAL_KEY_3"
     
     log_success "Unsealed!"
-fi
-
-SEAL_STATUS_OUTPUT=$(vault status 2>&1 || true)
-if echo "$SEAL_STATUS_OUTPUT" | grep 'Sealed' | grep -q 'false'; then
-    SEAL_STATUS="false"
-else
-    SEAL_STATUS="true"
-fi
-if [ "$SEAL_STATUS" != "false" ]; then
-    log_error "Failed to unseal!"
-    vault status
-    exit 1
 fi
 
 # ==================== LOGIN ====================
 log_info "Authenticating..."
 
-vault login "$VAULT_ROOT_TOKEN" >/dev/null 2>&1 || { log_error "Login failed"; exit 1; }
+VAULT_TOKEN_TO_USE="${VAULT_ROOT_TOKEN:-$ROOT_TOKEN}"
+
+vault login "$VAULT_TOKEN_TO_USE" >/dev/null 2>&1 || { log_error "Login failed"; exit 1; }
+export VAULT_ROOT_TOKEN="$VAULT_TOKEN_TO_USE"
 log_success "Authenticated!"
 
 # ==================== SETUP ====================
@@ -266,6 +263,8 @@ echo -e "${YELLOW}Keys: $VAULT_KEYS_FILE${NC}"
 echo ""
 echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
 echo ""
+touch /vault/data/.vault-ready
+log_success "Vault fully initialized and ready!"
 
 # ==================== MONITOR ====================
 log_info "Monitoring Vault health..."

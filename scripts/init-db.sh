@@ -34,7 +34,7 @@ else
 fi
 
 # CREATE DATABASE AND USER
-psql -v ON_ERROR_STOP=1 --username "postgres" --dbname "minibank_db" <<-EOSQL
+psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER:-admin}" --dbname "minibank_db" <<-EOSQL
     -- Criar usuário com senha do Vault
     DO \$\$
     BEGIN

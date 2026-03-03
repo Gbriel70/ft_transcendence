@@ -57,6 +57,10 @@ app.get('/metrics', async (req, res) => {
   res.send(await register.metrics());
 });
 
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', service: 'auth' });
+});
+
 // Helper function to create user profile in User Service after registration
 async function createUserProfile(authUserId, username)
 {

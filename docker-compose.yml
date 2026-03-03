@@ -18,10 +18,15 @@ services:
     networks:
       - minibank-network
     healthcheck:
-      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8200/v1/sys/health" ]
-      interval: 10s
+      test:
+        - "CMD"
+        - "sh"
+        - "-c"
+        - "wget -qO- http://127.0.0.1:8200/v1/sys/seal-status 2>/dev/null | grep -q '\"sealed\":false' && test -f /vault/data/.vault-ready"
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 60
+      start_period: 120s
     restart: unless-stopped
 
   # ====================POSTGRES========================#
@@ -38,10 +43,11 @@ services:
     networks:
       - minibank-network
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U admin -d minibank_db" ]
+      test: [ "CMD-SHELL", "pg_isready -h localhost -U admin -d minibank_db" ]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 15
+      start_period: 120s
     restart: unless-stopped
 
   #==================== HARDHAT NODE =======================#
@@ -91,6 +97,12 @@ services:
         condition: service_healthy
     networks:
       - minibank-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
     restart: unless-stopped
 
   # ==================== USER SERVICE  ====================
@@ -110,6 +122,8 @@ services:
       vault:
         condition: service_healthy
       postgres:
+        condition: service_healthy
+      auth_service:
         condition: service_healthy
     networks:
       - minibank-network
