@@ -113,10 +113,43 @@ app.post('/users', requireInternalSecret, async (req, res) => {
         [auth_user_id, name]
       );
 
+    const profile = result.rows[0];
+
+    // Automatically create blockchain wallet for the new user
+    try {
+      const BLOCKCHAIN_URL = process.env.BLOCKCHAIN_URL || 'http://blockchain_service:3004';
+      console.log(`Auto-creating blockchain wallet for new user profile ${profile.id}...`);
+
+      const blockchainRes = await fetch(`${BLOCKCHAIN_URL}/wallets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: profile.id })
+      });
+
+      if (blockchainRes.ok) {
+        const blockchainData = await blockchainRes.json();
+        const walletAddress = blockchainData.wallet_address;
+
+        await pool.query(
+          'UPDATE user_profiles SET wallet_address = $1 WHERE id = $2',
+          [walletAddress, profile.id]
+        );
+
+        profile.wallet_address = walletAddress;
+        console.log(`Wallet auto-created and saved: ${walletAddress}`);
+      } else {
+        const errBody = await blockchainRes.json().catch(() => ({}));
+        console.error('Failed to auto-create wallet (non-fatal):', errBody);
+      }
+    } catch (walletError) {
+      // Non-fatal: profile was created, wallet can be created later
+      console.error('Error auto-creating wallet (non-fatal):', walletError.message);
+    }
+
     res.status(201).json
       ({
         message: 'User profile created successfully',
-        profile: result.rows[0]
+        profile
       });
   }
   catch (error) {

@@ -253,9 +253,9 @@ const DashboardView = {
                 if (!profile.wallet_address) {
                     walletContent.innerHTML = `
                         <div style="display: flex; align-items: center; gap: 1rem; padding: 0.5rem 0;">
-                            <p style="color: var(--text-secondary); margin: 0;">You don't have a wallet yet.</p>
+                            <p style="color: var(--text-secondary); margin: 0;">Wallet setup is pending. Click to retry.</p>
                             <button id="btn-create-wallet" class="btn-primary-modern" style="width: auto; padding: 0.5rem 1.5rem;">
-                                Create Wallet
+                                Retry Wallet Setup
                             </button>
                         </div>
                     `;
@@ -272,7 +272,7 @@ const DashboardView = {
                         } catch (error) {
                             window.showNotification(error.message || 'Failed to create wallet', 'error');
                             btn.disabled = false;
-                            btn.textContent = 'Create Wallet';
+                            btn.textContent = 'Retry Wallet Setup';
                         }
                     });
 
