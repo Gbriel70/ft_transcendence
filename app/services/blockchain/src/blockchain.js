@@ -1,8 +1,8 @@
-const express = require('express');
+const express    = require('express');
 const { ethers } = require('ethers');
-const fs = require('fs');
-const path = require('path');
-const { savePrivateKey, getPrivateKey, getServiceConfig } = require('./vault');
+const fs         = require('fs');
+const path       = require('path');
+const {  getSecret, savePrivateKeyToVault, getPrivateKeyFromVault, getServiceConfig  } = require('./vault');
 
 const app = express();
 app.use(express.json());
@@ -12,247 +12,253 @@ let provider;
 let contract;
 let ownerWallet;
 
-// Load contract ABI
-function loadContractABI() 
+// ─── CONTRACT ABI ─────────────────────────────────────────────────────────────
+
+function loadContractABI()
 {
-  const artifactPath = path.join(__dirname, '../artifacts/contracts/MiniBank.sol/MiniBank.json');
-  if (fs.existsSync(artifactPath)) 
-  {
+    const artifactPath = path.join(__dirname, '../artifacts/contracts/MiniBank.sol/MiniBank.json');
+
+    if (!fs.existsSync(artifactPath))
+    {
+        throw new Error(`Contract artifact not found at ${artifactPath}`);
+    }
+
     const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
     return artifact.abi;
-  }
-  throw new Error(`Contract artifact not found at ${artifactPath}`);
 }
 
-// Initialize blockchain connection
+// ─── CORREÇÃO: polling real em vez de setTimeout fixo ────────────────────────
+
+async function waitForHardhat(url, maxAttempts = 30, delayMs = 3000)
+{
+    for (let attempt = 1; attempt <= maxAttempts; attempt++)
+    {
+        try
+        {
+            const testProvider = new ethers.JsonRpcProvider(url);
+            await testProvider.getNetwork();
+            console.log('Hardhat node is ready!');
+            return;
+        }
+        catch (err)
+        {
+            console.log(`Waiting for Hardhat (attempt ${attempt}/${maxAttempts}): ${err.message}`);
+            if (attempt === maxAttempts) throw new Error('Hardhat not reachable after max attempts');
+            await new Promise(r => setTimeout(r, delayMs));
+        }
+    }
+}
+
+// ─── BLOCKCHAIN INIT ──────────────────────────────────────────────────────────
+
 async function initializeBlockchain()
 {
-  console.log('Initializing blockchain connection...');
+    console.log('Initializing blockchain connection...');
 
-  provider = new ethers.JsonRpcProvider(config.hardhatUrl);
-  
-  const network = await provider.getNetwork();
-  console.log(`Connected to network: ${network.name} (chainId: ${network.chainId})`);
+    provider = new ethers.JsonRpcProvider(config.hardhatUrl);
 
-  const abi = loadContractABI();
-  contract = new ethers.Contract(config.contractAddress, abi, provider);
+    const network = await provider.getNetwork();
+    console.log(`Connected to network: ${network.name} (chainId: ${network.chainId})`);
 
-  // Get owner wallet (first hardhat account)
-  const accounts = await provider.listAccounts();
-  ownerWallet = await provider.getSigner(accounts[0].address);
+    const abi = loadContractABI();
+    contract  = new ethers.Contract(config.contractAddress, abi, provider);
 
-  console.log(`Contract: ${config.contractAddress}`);
-  console.log(`Owner: ${await ownerWallet.getAddress()}`);
+    const accounts  = await provider.listAccounts();
+    ownerWallet     = await provider.getSigner(accounts[0].address);
+
+    console.log(`Contract : ${config.contractAddress}`);
+    console.log(`Owner    : ${await ownerWallet.getAddress()}`);
 }
 
-// POST /wallets -> Create a new wallet for a user
-app.post('/wallets', async (req, res) => 
+// ─── ROUTES ───────────────────────────────────────────────────────────────────
+
+// POST /wallets — Cria wallet para um usuário
+app.post('/wallets', async (req, res) =>
 {
-  try 
-  {
-    const { user_id } = req.body;
-    if (!user_id) 
+    try
     {
-      return res.status(400).json({ error: 'Missing user_id in request body' });
-    }
+        const { user_id } = req.body;
 
-    console.log(`Creating wallet for user ${user_id}...`);
-    
-    // Check if wallet already exists
-    const existingWallet = await contract.getWallet(user_id);
-    if (existingWallet !== ethers.ZeroAddress)
+        if (!user_id)
+            return res.status(400).json({ error: 'Missing user_id' });
+
+        // 1. Gerar keypair para o usuário
+        const userWallet = ethers.Wallet.createRandom().connect(provider);
+        
+        // 2. Owner envia ETH para a wallet pagar gas futuro
+        const fundTx = await ownerWallet.sendTransaction({
+            to:    userWallet.address,
+            value: ethers.parseEther("1.0")  // 1 ETH para gas
+        });
+        await fundTx.wait();
+
+        // 3. Registrar no contrato (credita 100 tokens)
+        const contractWithOwner = contract.connect(ownerWallet);
+        const tx = await contractWithOwner.registerWallet(user_id, userWallet.address);
+        await tx.wait();
+
+        // 4. Salvar chave privada no Vault (SEGURO!)
+        await savePrivateKeyToVault(user_id, userWallet.privateKey);
+
+        res.json({
+            user_id,
+            wallet_address: userWallet.address,
+            balance:        100
+        });
+    }
+    catch (error)
     {
-      return res.status(409).json({ error: 'Wallet already exists for this user' });
+        console.error('Error creating wallet:', error);
+        res.status(500).json({ error: error.message });
     }
-
-    // Create new wallet
-    const wallet = ethers.Wallet.createRandom();
-    const walletAddress = wallet.address;
-    const privateKey = wallet.privateKey;
-
-    // Save private key in Vault
-    await savePrivateKey(user_id, privateKey);
-
-    // Register wallet in smart contract
-    const contractWithSigner = contract.connect(ownerWallet);
-    const tx = await contractWithSigner.registerWallet(user_id, walletAddress);
-    await tx.wait();
-
-    console.log(`Wallet created: ${walletAddress}`);
-    res.status(201).json
-    ({ 
-      message: 'Wallet created successfully',
-      wallet_address: walletAddress,
-      tx_hash: tx.hash
-    });
-  } catch (error)
-  {
-    console.error('Error creating wallet:', error);
-    res.status(500).json({ error: error.message || 'Failed to create wallet' });
-  }
 });
 
-// GET /wallets/:user_id -> Get wallet address for a user
-app.get('/wallets/:user_id', async (req, res) => 
+// GET /wallets/:user_id — Busca wallet pelo ID do usuário
+app.get('/wallets/:user_id', async (req, res) =>
 {
-  try
-  {
-    const user_id = parseInt(req.params.user_id);
-    const walletAddress = await contract.getWallet(user_id);
-    
-    if (walletAddress === ethers.ZeroAddress)
+    try
     {
-      return res.status(404).json({ error: 'Wallet not found for this user' });
+        const user_id       = parseInt(req.params.user_id);
+        const walletAddress = await contract.getWallet(user_id);
+
+        if (walletAddress === ethers.ZeroAddress)
+        {
+            return res.status(404).json({ error: 'Wallet not found for this user' });
+        }
+
+        res.json({ wallet_address: walletAddress });
     }
-    
-    res.json({ wallet_address: walletAddress });
-  } catch (error) 
-  {
-    console.error('Error fetching wallet:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
+    catch (error)
+    {
+        console.error('Error fetching wallet:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
-// GET /balances/:address -> Get wallet balance
-app.get('/balances/:address', async (req, res) => 
+// CORREÇÃO: rota corrigida para bater com o que o User Service chama
+// GET /wallets/:address/balance — Consulta saldo pelo endereço da wallet
+app.get('/wallets/:address/balance', async (req, res) =>
 {
-  try
-  {
-    const address = req.params.address;
-    const balance = await contract.getBalance(address);
-    
-    res.json
-    ({
-      address: address,
-      balance: ethers.formatEther(balance),
-      balance_wei: balance.toString() 
-    });
-  } catch (error)
-  {
-    console.error('Error fetching balance:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
+    try
+    {
+        const { address } = req.params;
+
+        if (!ethers.isAddress(address))
+        {
+            return res.status(400).json({ error: 'Invalid wallet address' });
+        }
+
+        const balance = await contract.getBalance(address);
+
+        res.json
+        ({
+            address,
+            balance: balance.toString()
+        });
+    }
+    catch (error)
+    {
+        console.error('Error fetching balance:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
-// POST /deposit -> Deposit funds
-app.post('/deposit', async (req, res) => 
+// POST /transfer - transferir usando a chave do usuário
+app.post('/transfer', async (req, res) =>
 {
-  try
-  {
-    const { user_id, amount } = req.body;
-    if (!user_id || !amount) 
+    try
     {
-      return res.status(400).json({ error: 'Missing user_id or amount' });
-    }
+        const { from_user_id, to_user_id, amount } = req.body;
 
-    const walletAddress = await contract.getWallet(user_id);
-    if (walletAddress === ethers.ZeroAddress) 
+        // 1. Buscar wallet addresses do contrato
+        const fromAddress = await contract.getWallet(from_user_id);
+        const toAddress   = await contract.getWallet(to_user_id);
+
+        if (fromAddress === ethers.ZeroAddress)
+            return res.status(404).json({ error: 'Sender wallet not found' });
+        if (toAddress === ethers.ZeroAddress)
+            return res.status(404).json({ error: 'Recipient wallet not found' });
+
+        // 2. Verificar saldo
+        const balance = await contract.getBalance(fromAddress);
+        if (balance < BigInt(amount))
+            return res.status(400).json({ error: `Insufficient balance. Has: ${balance}, needs: ${amount}` });
+
+        // 3. Buscar chave privada do sender no Vault
+        const privateKey = await getPrivateKeyFromVault(from_user_id);
+
+        // 4. Criar signer com a chave do usuário (ele assina como msg.sender!)
+        const userSigner          = new ethers.Wallet(privateKey, provider);
+        const contractWithUser    = contract.connect(userSigner);
+
+        // 5. Usuário assina e chama transfer() diretamente
+        const tx = await contractWithUser.transfer(toAddress, BigInt(amount));
+        await tx.wait();
+
+        res.json({
+            message: 'Transfer successful',
+            tx_hash: tx.hash,
+            from:    fromAddress,
+            to:      toAddress,
+            amount:  amount.toString()
+        });
+    }
+    catch (error)
     {
-      return res.status(404).json({ error: 'Wallet not found for this user' });
+        console.error('Transfer error:', error);
+        res.status(500).json({ error: error.message });
     }
-
-    const privateKey = await getPrivateKey(user_id);
-    const userWallet = new ethers.Wallet(privateKey, provider);
-
-    const contractWithSigner = contract.connect(userWallet);
-    const tx = await contractWithSigner.deposit
-    ({ 
-      value: ethers.parseEther(amount.toString()) 
-    });
-    await tx.wait();
-
-    console.log(`Deposit successful for user ${user_id}`);
-    res.json
-    ({ 
-      message: 'Deposit successful',
-      tx_hash: tx.hash
-    });
-  } catch (error) 
-  {
-    console.error('Error depositing:', error);
-    res.status(500).json({ error: error.message });
-  }
 });
 
-// POST /transfer -> Transfer funds
-app.post('/transfer', async (req, res) => 
-{
-  try
-  {
-    const { from_user_id, to_user_id, amount } = req.body;
-    if (!from_user_id || !to_user_id || !amount) 
-    {
-      return res.status(400).json({ error: 'Missing from_user_id, to_user_id or amount' });
-    }
-
-    const fromAddress = await contract.getWallet(from_user_id);
-    const toAddress = await contract.getWallet(to_user_id);
-    
-    if (fromAddress === ethers.ZeroAddress) 
-    {
-      return res.status(404).json({ error: 'Sender wallet not found' });
-    }
-    if (toAddress === ethers.ZeroAddress) 
-    {
-      return res.status(404).json({ error: 'Recipient wallet not found' });
-    }
-
-    const privateKey = await getPrivateKey(from_user_id);
-    const senderWallet = new ethers.Wallet(privateKey, provider);
-
-    const contractWithSigner = contract.connect(senderWallet);
-    const tx = await contractWithSigner.transfer
-    (
-      toAddress, 
-      ethers.parseEther(amount.toString())
-    );
-    await tx.wait();
-
-    console.log(`Transfer successful: ${from_user_id} -> ${to_user_id}`);
-    res.json
-    ({
-      message: 'Transfer successful',
-      tx_hash: tx.hash,
-      from: fromAddress,
-      to: toAddress,
-      amount: amount
-    });
-  } catch (error)
-  {
-    console.error('Error transferring funds:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+// ─── BOOTSTRAP ────────────────────────────────────────────────────────────────
 
 async function bootstrap()
 {
-  try
-  {
-    console.log('Starting Blockchain Service...');
-
-    // Wait for Hardhat node
-    console.log('Waiting for Hardhat node...');
-    await new Promise(resolve => setTimeout(resolve, 10000));
-
-    // Load config
-    config = await getServiceConfig();
-    console.log(`Hardhat: ${config.hardhatUrl}`);
-    console.log(`Contract: ${config.contractAddress}`);
-
-    // Initialize blockchain
-    await initializeBlockchain();
-    
-    // Start server
-    const PORT = config.port;
-    app.listen(PORT, () => 
+    try
     {
-      console.log(`Blockchain service ready on port ${PORT}`);
-    });
-  } catch (error)
-  {
-    console.error('Error starting blockchain service:', error);
-    process.exit(1);
-  }
+        console.log('Starting Blockchain Service...');
+
+        // CORREÇÃO: polling real em vez de setTimeout fixo
+        const hardhatUrl = process.env.HARDHAT_URL || 'http://hardhat:8545';
+        await waitForHardhat(hardhatUrl);
+
+        // Aguarda contract_address aparecer no Vault (deploy pode ainda estar rodando)
+        let retries = 30;
+        while (retries-- > 0)
+        {
+            try
+            {
+                config = await getServiceConfig();
+                if (config.contractAddress) break;
+            }
+            catch (err)
+            {
+                console.log(`contract_address not in Vault yet, retrying... (${retries} left)`);
+                await new Promise(r => setTimeout(r, 5000));
+            }
+        }
+
+        if (!config || !config.contractAddress)
+        {
+            throw new Error('contract_address never appeared in Vault after retries');
+        }
+
+        console.log(`Hardhat  : ${config.hardhatUrl}`);
+        console.log(`Contract : ${config.contractAddress}`);
+
+        await initializeBlockchain();
+
+        const PORT = config.port;
+        app.listen(PORT, () =>
+        {
+            console.log(`Blockchain service ready on port ${PORT}`);
+        });
+    }
+    catch (error)
+    {
+        console.error('Error starting blockchain service:', error);
+        process.exit(1);
+    }
 }
 
 bootstrap();

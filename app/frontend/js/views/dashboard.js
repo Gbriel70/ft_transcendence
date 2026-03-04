@@ -178,6 +178,17 @@ const DashboardView = {
                     </div>
                 </div>
 
+                <!-- Wallet Section -->
+                <div class="card-modern mb-4">
+                    <div class="card-header-modern">
+                        <h2>💳 Blockchain Wallet</h2>
+                        <p>Your personal blockchain wallet</p>
+                    </div>
+                    <div id="wallet-content">
+                        <p style="color: var(--text-secondary);">Loading wallet...</p>
+                    </div>
+                </div>
+
                 <!-- Transaction History -->
                 <div class="card-modern">
                     <div class="card-header-modern">
@@ -232,6 +243,90 @@ const DashboardView = {
             });
         }
 
+        const renderWallet = async () => {
+            const walletContent = document.getElementById('wallet-content');
+            if (!walletContent) return;
+
+            try {
+                const profile = await api.getProfile();
+                
+                if (!profile.wallet_address) {
+                    walletContent.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 1rem; padding: 0.5rem 0;">
+                            <p style="color: var(--text-secondary); margin: 0;">You don't have a wallet yet.</p>
+                            <button id="btn-create-wallet" class="btn-primary-modern" style="width: auto; padding: 0.5rem 1.5rem;">
+                                Create Wallet
+                            </button>
+                        </div>
+                    `;
+
+                    document.getElementById('btn-create-wallet').addEventListener('click', async () => {
+                        const btn = document.getElementById('btn-create-wallet');
+                        btn.disabled = true;
+                        btn.textContent = 'Creating...';
+
+                        try {
+                            await api.createWallet();
+                            window.showNotification('Wallet created successfully!', 'success');
+                            await renderWallet(); // recarregar
+                        } catch (error) {
+                            window.showNotification(error.message || 'Failed to create wallet', 'error');
+                            btn.disabled = false;
+                            btn.textContent = 'Create Wallet';
+                        }
+                    });
+
+                } else {
+                    // Mostrar endereço
+                    walletContent.innerHTML = `
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem; padding: 0.5rem 0;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span style="color: var(--text-secondary); font-size: 0.85rem;">Address:</span>
+                                <code style="
+                                    background: var(--bg-secondary);
+                                    padding: 0.3rem 0.75rem;
+                                    border-radius: 6px;
+                                    font-size: 0.85rem;
+                                    word-break: break-all;
+                                ">${profile.wallet_address}</code>
+                                <button onclick="navigator.clipboard.writeText('${profile.wallet_address}').then(() => window.showNotification('Address copied!', 'success'))"
+                                    style="
+                                        background: none;
+                                        border: 1px solid var(--border-color);
+                                        border-radius: 6px;
+                                        padding: 0.3rem 0.5rem;
+                                        cursor: pointer;
+                                        color: var(--text-secondary);
+                                    "
+                                    title="Copy address">📋</button>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span style="color: var(--text-secondary); font-size: 0.85rem;">Balance:</span>
+                                <span id="eth-balance" style="font-weight: 600; color: var(--primary);">Loading...</span>
+                            </div>
+                        </div>
+                    `;
+
+                    // Buscar saldo ETH
+                    try {
+                        const balanceData = await api.getWalletBalance(profile.wallet_address);
+                        const ethBalance = document.getElementById('eth-balance');
+                        if (ethBalance) {
+                            ethBalance.textContent = `${parseFloat(balanceData.balance).toFixed(4)} ETH`;
+                        }
+                    } catch (e) {
+                        const ethBalance = document.getElementById('eth-balance');
+                        if (ethBalance) ethBalance.textContent = 'Error loading balance';
+                    }
+                }
+
+            } catch (error) {
+                walletContent.innerHTML = `<p style="color: var(--text-secondary);">Error loading wallet: ${error.message}</p>`;
+            }
+        };
+
+        await renderWallet();
+
         const loadData = async () => {
             try {
                 // Check for mock data first
@@ -252,16 +347,7 @@ const DashboardView = {
                 if (mockData && mockData.balance !== undefined) {
                     balanceEl.textContent = parseFloat(mockData.balance).toFixed(2);
                 } else {
-                    const profile = await api.getProfile(user.id).catch(err => {
-                        console.error('Failed to load profile:', err);
-                        return null;
-                    });
-
-                    if (profile && profile.balance !== undefined && profile.balance !== null) {
-                        balanceEl.textContent = parseFloat(profile.balance).toFixed(2);
-                    } else {
-                        balanceEl.textContent = "0.00";
-                    }
+                    balanceEl.textContent = "0.00";
                 }
 
                 // Load transactions
@@ -271,7 +357,7 @@ const DashboardView = {
                 } else {
                     txData = await api.getTransactions().catch(err => {
                         console.error('Failed to load transactions:', err);
-                        return null;
+                        return { data: [] };
                     });
                 }
 

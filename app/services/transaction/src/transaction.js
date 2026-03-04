@@ -1,72 +1,149 @@
 const express = require('express');
-const client = require('prom-client');
-const { initVault } = require('./vault');
+const client  = require('prom-client');
+const jwt     = require('jsonwebtoken');
+const http    = require('http');
+const { initVault, getSecret } = require('./vault');
 
-const app = express();
+const app  = express();
 const PORT = process.env.SERVICE_PORT || 3003;
+const BLOCKCHAIN_URL = process.env.BLOCKCHAIN_URL || 'http://blockchain_service:3004';
 
 app.use(express.json());
 
+// ── Metrics ───────────────────────────────────────────────────────────────────
 const register = client.register;
 register.setDefaultLabels({ service: process.env.SERVICE_NAME || 'transaction' });
 client.collectDefaultMetrics({ register });
 
-const httpRequestDuration = new client.Histogram({
-  name: 'http_request_duration_seconds',
-  help: 'HTTP request duration in seconds',
-  labelNames: ['method', 'route', 'status_code'],
-  buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
+app.get('/metrics', async (req, res) => {
+    res.set('Content-Type', register.contentType);
+    res.send(await register.metrics());
 });
 
-const httpRequestsTotal = new client.Counter({
-  name: 'http_requests_total',
-  help: 'Total HTTP requests',
-  labelNames: ['method', 'route', 'status_code']
-});
+// ── Helpers ───────────────────────────────────────────────────────────────────
+let jwtSecret;
 
-app.use((req, res, next) => {
-  if (req.path === '/metrics') {
-    return next();
-  }
+const authenticate = (req, res, next) => {
+    const auth = req.headers.authorization;
+    if (!auth || !auth.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+        req.user = jwt.verify(auth.split(' ')[1], jwtSecret);
+        next();
+    } catch (e) {
+        return res.status(401).json({ error: 'Invalid token' });
+    }
+};
 
-  const endTimer = httpRequestDuration.startTimer();
+// Chamar o blockchain_service internamente
+const callBlockchain = async (method, path, body = null) => {
+    const url = new URL(path, BLOCKCHAIN_URL);
 
-  res.on('finish', () => {
-    const route = req.route && req.route.path ? `${req.baseUrl || ''}${req.route.path}` : req.path;
-    const labels = {
-      method: req.method,
-      route,
-      status_code: res.statusCode
+    const options = {
+        method,
+        headers: { 'Content-Type': 'application/json' },
     };
 
-    httpRequestsTotal.inc(labels);
-    endTimer(labels);
-  });
+    const response = await fetch(url.toString(), {
+        ...options,
+        body: body ? JSON.stringify(body) : undefined,
+    });
 
-  next();
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.error || `Blockchain error: ${response.status}`);
+    }
+
+    return data;
+};
+
+// ── Routes ────────────────────────────────────────────────────────────────────
+
+// GET /transactions - listar transações do usuário via blockchain
+app.get('/transactions', authenticate, async (req, res) => {
+    try {
+        const userId = req.user.userId || req.user.id;
+
+        // Buscar wallet do usuário no blockchain
+        const walletData = await callBlockchain('GET', `/wallets/${userId}`).catch(() => null);
+
+        if (!walletData || !walletData.wallet_address) {
+            return res.json({ transactions: [] });
+        }
+
+        // Buscar histórico de transações via blockchain
+        return res.json({ transactions: [] });
+
+    } catch (err) {
+        console.error('Get transactions error:', err);
+        res.status(500).json({ error: 'Failed to get transactions' });
+    }
 });
 
-app.get('/metrics', async (req, res) => {
-  res.set('Content-Type', register.contentType);
-  res.send(await register.metrics());
+// POST /transactions - transferir via blockchain
+app.post('/transactions', authenticate, async (req, res) => {
+    const { to_user_id, amount } = req.body;
+
+    if (!to_user_id || !amount || parseFloat(amount) <= 0) {
+        return res.status(400).json({ error: 'Missing to_user_id or amount' });
+    }
+
+    try {
+        const from_user_id = req.user.userId || req.user.id;
+
+        if (from_user_id === parseInt(to_user_id)) {
+            return res.status(400).json({ error: 'Cannot transfer to yourself' });
+        }
+
+        // Chamar blockchain_service para transferir
+        const result = await callBlockchain('POST', '/transfer', {
+            from_user_id,
+            to_user_id: parseInt(to_user_id),
+            amount: Math.floor(parseFloat(amount))
+        });
+
+        res.status(201).json({ success: true, ...result });
+    } catch (err) {
+        console.error('Transfer error:', err);
+        res.status(500).json({ error: err.message || 'Transfer failed' });
+    }
 });
 
-// Get transactions
-app.get('/transactions', (req, res) => {
-  res.json({ message: 'Get transactions endpoint' });
+// POST /deposit - depositar via blockchain
+app.post('/deposit', authenticate, async (req, res) => {
+    const { amount } = req.body;
+
+    if (!amount || parseFloat(amount) <= 0) {
+        return res.status(400).json({ error: 'Invalid amount' });
+    }
+
+    try {
+        const user_id = req.user.userId || req.user.id;
+
+        const result = await callBlockchain('POST', '/deposit', {
+            user_id,
+            amount: parseFloat(amount)
+        });
+
+        res.json({ success: true, ...result });
+    } catch (err) {
+        console.error('Deposit error:', err);
+        res.status(500).json({ error: err.message || 'Deposit failed' });
+    }
 });
 
-// Create transaction
-app.post('/transactions', (req, res) => {
-  res.json({ message: 'Create transaction endpoint' });
-});
-
+// ── Bootstrap ─────────────────────────────────────────────────────────────────
 async function bootstrap() {
-  await initVault();
+    await initVault();
 
-  app.listen(PORT, () => {
-    console.log(`✅ Transaction service running on port ${PORT}`);
-  });
+    jwtSecret = await getSecret('jwt', 'secret')
+        .catch(() => process.env.JWT_SECRET || 'fallback_secret');
+
+    app.listen(PORT, () => {
+        console.log(`✅ Transaction service running on port ${PORT}`);
+    });
 }
 
 bootstrap();

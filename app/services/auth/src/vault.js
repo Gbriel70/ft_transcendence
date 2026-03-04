@@ -5,41 +5,42 @@ const VAULT_ADDR = process.env.VAULT_ADDR || 'http://vault:8200';
 const VAULT_DATA_DIR = '/vault-keys';
 const APPROLE_DIR = path.join(VAULT_DATA_DIR, 'approles');
 
-class VaultClient 
+class VaultClient
 {
-    constructor() 
+    constructor()
     {
         this.token = null;
+        // 'auth' no auth service, 'user' no user service
         this.serviceName = process.env.SERVICE_NAME || 'auth';
     }
 
     // AUTHENTICATE USING APPROLE
-    async authenticate() 
+    async authenticate()
     {
-        try 
+        try
         {
             console.log(`Authenticating ${this.serviceName}-service with Vault...`);
 
-            const roleIdPath = path.join(APPROLE_DIR, `${this.serviceName}_role_id`);
+            const roleIdPath   = path.join(APPROLE_DIR, `${this.serviceName}_role_id`);
             const secretIdPath = path.join(APPROLE_DIR, `${this.serviceName}_secret_id`);
 
             console.log(`   Reading from: ${roleIdPath}`);
 
-            const roleId = await fs.readFile(roleIdPath, 'utf8');
+            const roleId   = await fs.readFile(roleIdPath,   'utf8');
             const secretId = await fs.readFile(secretIdPath, 'utf8');
 
-            const response = await fetch(`${VAULT_ADDR}/v1/auth/approle/login`, 
+            const response = await fetch(`${VAULT_ADDR}/v1/auth/approle/login`,
             {
-                method: 'POST',
+                method:  'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify
+                body:    JSON.stringify
                 ({
-                    role_id: roleId.trim(),
+                    role_id:   roleId.trim(),
                     secret_id: secretId.trim()
                 })
             });
 
-            if (!response.ok) 
+            if (!response.ok)
             {
                 throw new Error(`Vault auth failed: ${response.statusText}`);
             }
@@ -48,12 +49,12 @@ class VaultClient
             this.token = data.auth.client_token;
 
             console.log(`Authenticated! Token TTL: ${data.auth.lease_duration}s`);
-            
+
             this.scheduleTokenRenewal(data.auth.lease_duration);
 
             return this.token;
-
-        } catch (error) 
+        }
+        catch (error)
         {
             console.error('Vault authentication failed:', error.message);
             throw error;
@@ -61,35 +62,35 @@ class VaultClient
     }
 
     // SCHEDULE TOKEN RENEWAL
-    scheduleTokenRenewal(ttl) 
+    scheduleTokenRenewal(ttl)
     {
         const renewAt = (ttl * 0.9) * 1000;
-        
-        setTimeout(async () => 
+
+        setTimeout(async () =>
         {
             console.log('Renewing Vault token...');
-            
-            try 
+
+            try
             {
-                const response = await fetch(`${VAULT_ADDR}/v1/auth/token/renew-self`, 
+                const response = await fetch(`${VAULT_ADDR}/v1/auth/token/renew-self`,
                 {
-                    method: 'POST',
-                    headers: {
-                        'X-Vault-Token': this.token
-                    }
+                    method:  'POST',
+                    headers: { 'X-Vault-Token': this.token }
                 });
 
-                if (response.ok) 
+                if (response.ok)
                 {
                     const data = await response.json();
                     console.log(`Token renewed! New TTL: ${data.auth.lease_duration}s`);
                     this.scheduleTokenRenewal(data.auth.lease_duration);
-                } else 
+                }
+                else
                 {
                     console.warn('Token renewal failed, re-authenticating...');
                     await this.authenticate();
                 }
-            } catch (error) 
+            }
+            catch (error)
             {
                 console.error('Token renewal error:', error.message);
                 await this.authenticate();
@@ -98,49 +99,46 @@ class VaultClient
     }
 
     // READ SECRET FROM VAULT
-    async getSecret(path) 
+    async getSecret(secretPath)
     {
-        if (!this.token) 
+        if (!this.token)
         {
             await this.authenticate();
         }
 
-        try 
+        try
         {
-            const response = await fetch(`${VAULT_ADDR}/v1/secret/data/${path}`, 
+            const response = await fetch(`${VAULT_ADDR}/v1/secret/data/${secretPath}`,
             {
-                headers: {
-                    'X-Vault-Token': this.token
-                }
+                headers: { 'X-Vault-Token': this.token }
             });
 
-            if (!response.ok) 
+            if (!response.ok)
             {
-                throw new Error(`Failed to read ${path}: ${response.statusText}`);
+                throw new Error(`Failed to read ${secretPath}: ${response.statusText}`);
             }
 
             const data = await response.json();
             return data.data.data;
-
-        } catch (error) 
+        }
+        catch (error)
         {
-            console.error(`Error reading secret '${path}':`, error.message);
+            console.error(`Error reading secret '${secretPath}':`, error.message);
             throw error;
         }
     }
 
-    //SEARCH DATABASE CREDENTIALS
-    async getDatabaseCredentials() 
+    async getDatabaseCredentials()
     {
         console.log('Fetching database credentials from Vault...');
         return await this.getSecret('database');
     }
 
-    //SEARCH SERVICE CONFIG
-    async getServiceConfig() 
+    // ─── CORREÇÃO: internalSecret exposto no config ───────────────────────────
+    async getServiceConfig()
     {
-        console.log(` Fetching ${this.serviceName} config from Vault...`);
-        
+        console.log(`Fetching ${this.serviceName} config from Vault...`);
+
         const [dbCreds, jwtData, serviceConfig] = await Promise.all
         ([
             this.getDatabaseCredentials(),
@@ -149,20 +147,23 @@ class VaultClient
         ]);
 
         return {
-            database: {
-                host: dbCreds.host,
-                port: parseInt(dbCreds.port),
-                name: dbCreds.name,
-                user: dbCreds.user,
+            database:
+            {
+                host:     dbCreds.host,
+                port:     parseInt(dbCreds.port),
+                name:     dbCreds.name,
+                user:     dbCreds.user,
                 password: dbCreds.password
             },
-            jwt: {
-                secret: jwtData.secret,
-                expiresIn: jwtData.expires_in || '24h',
-                algorithm: jwtData.algorithm || 'HS256'
+            jwt:
+            {
+                secret:    jwtData.secret,
+                expiresIn: jwtData.expires_in  || '24h',
+                algorithm: jwtData.algorithm   || 'HS256'
             },
-            port: parseInt(serviceConfig.port),
-            bcryptRounds: parseInt(serviceConfig.bcrypt_rounds) || 12
+            port:           parseInt(serviceConfig.port),
+            bcryptRounds:   parseInt(serviceConfig.bcrypt_rounds) || 12,
+            internalSecret: serviceConfig.internal_secret   // ← CORREÇÃO
         };
     }
 }

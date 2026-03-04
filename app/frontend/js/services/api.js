@@ -49,7 +49,8 @@ const api = {
                     const fullUser = {
                         ...data.user,
                         name: profile.name || data.user.name,
-                        profile_picture: profile.profile_picture || null
+                        profile_picture: profile.profile_picture || null,
+                        wallet_address: profile.wallet_address || null
                     };
                     localStorage.setItem('user', JSON.stringify(fullUser));
                 }
@@ -70,27 +71,70 @@ const api = {
         return { success: true, ...data };
     },
 
-    getProfile: async (userId) => {
-        const response = await fetch(`${API_BASE}/user/profile/${userId}`, {
+    getProfile: async () => {
+        const response = await fetch(`${API_BASE}/users/me`, {
             headers: getHeaders()
         });
         return handleResponse(response);
     },
 
-    transfer: async (recipientEmail, amount) => {
-        const response = await fetch(`${API_BASE}/transaction/transactions`, {
+    createWallet: async () => 
+    {
+        const response = await fetch(`${API_BASE}/users/me/wallet`, {
+            method: 'POST',
+            headers: getHeaders()
+        });
+        return handleResponse(response);
+    },
+
+    getWalletBalance: async (walletAddress) => 
+    {
+        const response = await fetch(`${API_BASE}/blockchain/wallets/${walletAddress}/balance`, {
+        headers: getHeaders()
+        });
+        return handleResponse(response);
+    },
+
+    transfer: async (recipientEmail, amount) => 
+    {
+         console.log('transfer called with:', recipientEmail, amount);
+
+        // Primeiro busca o usuário pelo username para obter o ID
+        const userResponse = await fetch(`${API_BASE}/users/by-email/${encodeURIComponent(recipientEmail)}`, 
+        {
+           headers: getHeaders()
+        });
+
+        if (!userResponse.ok)
+        {
+            throw new Error('User not found');
+        }
+
+        const userData = await userResponse.json();
+        const to_user_id = userData.id;
+
+        // Agora faz a transferência com o ID correto
+        const response = await fetch(`${API_BASE}/tx/transactions`,
+        {
             method: 'POST',
             headers: getHeaders(),
-            body: JSON.stringify({ recipientEmail, amount })
+            body: JSON.stringify({ to_user_id, amount: parseFloat(amount) })
         });
+
         return handleResponse(response);
     },
 
     getTransactions: async () => {
-        const response = await fetch(`${API_BASE}/transaction/transactions`, {
+        const response = await fetch(`${API_BASE}/tx/transactions`, {
             headers: getHeaders()
         });
-        return handleResponse(response);
+        const data = await handleResponse(response);
+        // Normalizar para sempre retornar { data: [] }
+        // transaction_service pode retornar { transactions: [] } ou { data: [] } ou []
+        if (Array.isArray(data))              return { data };
+        if (Array.isArray(data.data))         return data;
+        if (Array.isArray(data.transactions)) return { data: data.transactions };
+        return { data: [] };
     },
 
     logout: () => {
@@ -214,7 +258,11 @@ const api = {
                 });
                 if (profileRes.ok) {
                     const profile = await profileRes.json();
-                    const fullUser = { ...data.user, name: profile.name || data.user.name, profile_picture: profile.profile_picture || null };
+                    const fullUser = { ...data.user,
+                        name: profile.name || data.user.name,
+                        profile_picture: profile.profile_picture || null,
+                        wallet_address: profile.wallet_address || null
+                    };
                     localStorage.setItem('user', JSON.stringify(fullUser));
                 }
             } catch (e) {

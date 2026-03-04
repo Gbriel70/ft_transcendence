@@ -2,7 +2,7 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-RUN npm install express node-vault prom-client
+RUN npm install express node-vault prom-client jsonwebtoken
 
 COPY src ./src
 
