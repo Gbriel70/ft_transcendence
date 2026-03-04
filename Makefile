@@ -26,7 +26,7 @@ build:
 
 up:
 	@echo "$(CYAN)$(BOLD)[Docker] Subindo serviços...$(RESET)"
-	$(DC) up
+	$(DC) up -d
 	@echo "$(GREEN)$(BOLD)[OK] Projeto rodando em https://localhost:8443$(RESET)"
 
 # ══════════════════════════════════════════════════════════════════════════════

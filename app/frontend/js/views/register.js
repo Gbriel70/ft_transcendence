@@ -1,4 +1,4 @@
-import api from '../services/api.js';
+import api from '../services/api.js?v=8';
 
 const RegisterView = {
     render: async () => {

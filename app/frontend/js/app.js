@@ -1,5 +1,5 @@
-// v5 — dynamic imports bust nginx's 1-year immutable cache on view files
-const V = '?v=7';
+// v8 — sessionStorage isolation: token/user per-tab, not shared across tabs
+const V = '?v=8';
 
 const THEME_STORAGE_KEY = 'theme';
 

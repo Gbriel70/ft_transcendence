@@ -4,7 +4,7 @@ const getHeaders = () => {
     const headers = {
         'Content-Type': 'application/json'
     };
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }
@@ -14,8 +14,8 @@ const getHeaders = () => {
 const handleResponse = async (response) => {
     if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
+            sessionStorage.removeItem('token');
+            sessionStorage.removeItem('user');
             window.location.hash = '/login';
             throw new Error('Unauthorized');
         }
@@ -34,8 +34,8 @@ const api = {
         });
         const data = await handleResponse(response);
         if (data.token) {
-            localStorage.setItem('token', data.token);
-            localStorage.setItem('user', JSON.stringify(data.user));
+            sessionStorage.setItem('token', data.token);
+            sessionStorage.setItem('user', JSON.stringify(data.user));
 
             try {
                 const profileRes = await fetch(`${API_BASE}/users/me`, {
@@ -52,7 +52,7 @@ const api = {
                         profile_picture: profile.profile_picture || null,
                         wallet_address: profile.wallet_address || null
                     };
-                    localStorage.setItem('user', JSON.stringify(fullUser));
+                    sessionStorage.setItem('user', JSON.stringify(fullUser));
                 }
             } catch (e) {
                 console.warn('Could not fetch full profile after login:', e);
@@ -138,13 +138,13 @@ const api = {
     },
 
     logout: () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('user');
         window.location.hash = '/login';
     },
 
     getCurrentUser: () => {
-        const userStr = localStorage.getItem('user');
+        const userStr = sessionStorage.getItem('user');
         try {
             return userStr ? JSON.parse(userStr) : null;
         } catch {
@@ -178,7 +178,7 @@ const api = {
             const currentUser = api.getCurrentUser() || {};
             currentUser.name = data.profile.name;
             currentUser.profile_picture = data.profile.profile_picture;
-            localStorage.setItem('user', JSON.stringify(currentUser));
+            sessionStorage.setItem('user', JSON.stringify(currentUser));
         }
         return data;
     },
@@ -193,7 +193,7 @@ const api = {
         if (data && data.message === 'Email updated successfully') {
             const currentUser = api.getCurrentUser() || {};
             currentUser.email = newEmail;
-            localStorage.setItem('user', JSON.stringify(currentUser));
+            sessionStorage.setItem('user', JSON.stringify(currentUser));
         }
         return data;
     },
@@ -250,8 +250,8 @@ const api = {
         });
         const data = await handleResponse(response);
         if (data.token) {
-            localStorage.setItem('token', data.token);
-            localStorage.setItem('user', JSON.stringify(data.user));
+            sessionStorage.setItem('token', data.token);
+            sessionStorage.setItem('user', JSON.stringify(data.user));
             try {
                 const profileRes = await fetch(`${API_BASE}/users/me`, {
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` }
@@ -263,7 +263,7 @@ const api = {
                         profile_picture: profile.profile_picture || null,
                         wallet_address: profile.wallet_address || null
                     };
-                    localStorage.setItem('user', JSON.stringify(fullUser));
+                    sessionStorage.setItem('user', JSON.stringify(fullUser));
                 }
             } catch (e) {
                 console.warn('Could not fetch full profile after 2FA login:', e);

@@ -1,4 +1,4 @@
-import api from '../services/api.js';
+import api from '../services/api.js?v=8';
 
 const capitalizeWord = (word) => {
     if (!word) return '';
@@ -31,7 +31,7 @@ const getDashboardDisplayName = (fullName) => {
 const DashboardView = {
     render: async () => {
         const user = api.getCurrentUser();
-        const token = localStorage.getItem('token');
+        const token = sessionStorage.getItem('token');
         if (!user || !token) {
             window.location.hash = '/login';
             return '<p>Redirecting...</p>';

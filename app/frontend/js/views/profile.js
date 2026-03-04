@@ -1,9 +1,9 @@
-import api from '../services/api.js';
+import api from '../services/api.js?v=8';
 
 const ProfileView = {
     render: async () => {
         const user = api.getCurrentUser();
-        const token = localStorage.getItem('token');
+        const token = sessionStorage.getItem('token');
         if (!user || !token) {
             window.location.hash = '/login';
             return '<p>Redirecting...</p>';
