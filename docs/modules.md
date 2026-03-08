@@ -18,12 +18,12 @@
   - Manage secrets in Vault (API keys, credentials, environment variables), encrypted and isolated.
 
 ## 7. Devops
-#### - Major: Infrastructure for log management using ELK (Elasticsearch, Logstash, Kibana).
-  - Elasticsearch to store and index logs.
-  - Logstash to collect and transform logs.
-  - Kibana for visualization and dashboards.
-  - Implement log retention and archiving policies.
-  - Secure access to all components.
+#### - Major: Infrastructure for log management using ELK (Elasticsearch, Logstash, Kibana). [X]
+  - Elasticsearch to store and index logs. [X]
+  - Logstash to collect and transform logs. [X]
+  - Kibana for visualization and dashboards. [X]
+  - Implement log retention and archiving policies. [X] ILM: hot(7d/10GB) → warm → cold(15d) → delete(30d)
+  - Secure access to all components. [X] xpack.security + Kibana login + nginx TLS proxy
 
 #### - Major: Backend as microservices. [X]
   - Design loosely-coupled services with clear interfaces. [X]
@@ -57,7 +57,7 @@
 | Task | Type | Status |
 |------|------|--------|
 | Store tournament scores on the Blockchain | Major | Ongoing |
-| Infrastructure for log management using ELK (Elasticsearch, Logstash, Kibana) | Major | Pending |
+| Infrastructure for log management using ELK (Elasticsearch, Logstash, Kibana) | Major | Done ✓ |
 | Implement remote authentication with OAuth 2.0 (Google, GitHub, 42, etc.) | Minor | Pending |
 | Implement a complete 2FA (Two-Factor Authentication) system for the users | Minor | Pending |
 | GDPR compliance features | Minor | Pending |
