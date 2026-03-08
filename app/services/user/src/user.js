@@ -28,6 +28,28 @@ const httpRequestsTotal = new client.Counter({
   labelNames: ['method', 'route', 'status_code']
 });
 
+const userProfileUpdateTotal = new client.Counter({
+  name: 'user_profile_update_total',
+  help: 'Total profile update attempts',
+  labelNames: ['result'],
+  registers: [register],
+});
+
+const dbQueryDuration = new client.Histogram({
+  name: 'db_query_duration_seconds',
+  help: 'Duration of PostgreSQL queries in seconds',
+  labelNames: ['operation'],
+  buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1],
+  registers: [register],
+});
+
+async function dbQuery(pool, sql, params = []) {
+  const op = sql.trim().split(/\s+/)[0].toUpperCase();
+  const end = dbQueryDuration.startTimer({ operation: op });
+  try { const r = await pool.query(sql, params); end(); return r; }
+  catch (err) { end(); throw err; }
+}
+
 app.use((req, res, next) => {
   if (req.path === '/metrics') return next();
 
@@ -394,9 +416,11 @@ app.put('/users/me', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'User profile not found' });
     }
 
+    userProfileUpdateTotal.inc({ result: 'success' });
     res.json({ message: 'Profile updated successfully', profile: result.rows[0] });
   }
   catch (error) {
+    userProfileUpdateTotal.inc({ result: 'error' });
     console.error('Error updating profile:', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }

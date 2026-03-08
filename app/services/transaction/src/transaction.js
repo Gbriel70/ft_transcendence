@@ -15,6 +15,28 @@ const register = client.register;
 register.setDefaultLabels({ service: process.env.SERVICE_NAME || 'transaction' });
 client.collectDefaultMetrics({ register });
 
+const transactionAmountEth = new client.Histogram({
+    name: 'transaction_amount_eth',
+    help: 'Distribution of transaction amounts (in token units)',
+    labelNames: ['type'],
+    buckets: [1, 5, 10, 25, 50, 100, 250, 500, 1000],
+    registers: [register],
+});
+
+const transactionErrorsTotal = new client.Counter({
+    name: 'transaction_errors_total',
+    help: 'Total failed transaction operations',
+    labelNames: ['type'],
+    registers: [register],
+});
+
+const transactionTotal = new client.Counter({
+    name: 'transaction_total',
+    help: 'Total successful transaction operations',
+    labelNames: ['type'],
+    registers: [register],
+});
+
 app.get('/metrics', async (req, res) => {
     res.set('Content-Type', register.contentType);
     res.send(await register.metrics());
@@ -74,9 +96,11 @@ app.get('/transactions', authenticate, async (req, res) => {
         }
 
         // Buscar histórico de transações via blockchain
+        transactionTotal.inc({ type: 'get' });
         return res.json({ transactions: [] });
 
     } catch (err) {
+        transactionErrorsTotal.inc({ type: 'get' });
         console.error('Get transactions error:', err);
         res.status(500).json({ error: 'Failed to get transactions' });
     }
@@ -98,14 +122,18 @@ app.post('/transactions', authenticate, async (req, res) => {
         }
 
         // Chamar blockchain_service para transferir
+        const parsedAmount = Math.floor(parseFloat(amount));
         const result = await callBlockchain('POST', '/transfer', {
             from_user_id,
             to_user_id: parseInt(to_user_id),
-            amount: Math.floor(parseFloat(amount))
+            amount: parsedAmount
         });
 
+        transactionTotal.inc({ type: 'transfer' });
+        transactionAmountEth.observe({ type: 'transfer' }, parsedAmount);
         res.status(201).json({ success: true, ...result });
     } catch (err) {
+        transactionErrorsTotal.inc({ type: 'transfer' });
         console.error('Transfer error:', err);
         res.status(500).json({ error: err.message || 'Transfer failed' });
     }
@@ -122,13 +150,17 @@ app.post('/deposit', authenticate, async (req, res) => {
     try {
         const user_id = req.user.userId || req.user.id;
 
+        const parsedAmount = parseFloat(amount);
         const result = await callBlockchain('POST', '/deposit', {
             user_id,
-            amount: parseFloat(amount)
+            amount: parsedAmount
         });
 
+        transactionTotal.inc({ type: 'deposit' });
+        transactionAmountEth.observe({ type: 'deposit' }, parsedAmount);
         res.json({ success: true, ...result });
     } catch (err) {
+        transactionErrorsTotal.inc({ type: 'deposit' });
         console.error('Deposit error:', err);
         res.status(500).json({ error: err.message || 'Deposit failed' });
     }

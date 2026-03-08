@@ -31,6 +31,43 @@ const httpRequestsTotal = new client.Counter({
     labelNames: ['method', 'route', 'status_code']
 });
 
+const authLoginTotal = new client.Counter({
+    name: 'auth_login_total',
+    help: 'Total login attempts',
+    labelNames: ['result', 'reason'],
+    registers: [register],
+});
+
+const auth2faTotal = new client.Counter({
+    name: 'auth_2fa_total',
+    help: 'Total 2FA operations',
+    labelNames: ['action', 'result'],
+    registers: [register],
+});
+
+const authTokenRefreshTotal = new client.Counter({
+    name: 'auth_token_refresh_total',
+    help: 'Total token refresh attempts',
+    labelNames: ['result'],
+    registers: [register],
+});
+
+const dbQueryDuration = new client.Histogram({
+    name: 'db_query_duration_seconds',
+    help: 'Duration of PostgreSQL queries in seconds',
+    labelNames: ['operation'],
+    buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1],
+    registers: [register],
+});
+
+async function dbQuery(pool, sql, params = [])
+{
+    const op = sql.trim().split(/\s+/)[0].toUpperCase();
+    const end = dbQueryDuration.startTimer({ operation: op });
+    try { const r = await pool.query(sql, params); end(); return r; }
+    catch (err) { end(); throw err; }
+}
+
 app.use((req, res, next) =>
 {
     if (req.path === '/metrics') return next();
@@ -197,10 +234,11 @@ app.post('/login', async (req, res) =>
         }
 
         const pool = await getPool();
-        const result = await pool.query('SELECT * FROM user_auth WHERE email = $1', [email]);
+        const result = await dbQuery(pool, 'SELECT * FROM user_auth WHERE email = $1', [email]);
 
         if (result.rows.length === 0)
         {
+            authLoginTotal.inc({ result: 'failure', reason: 'user_not_found' });
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
@@ -209,12 +247,14 @@ app.post('/login', async (req, res) =>
 
         if (!validPassword)
         {
+            authLoginTotal.inc({ result: 'failure', reason: 'invalid_password' });
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
         // Se 2FA está ativo, retorna temp token
         if (user.totp_enabled)
         {
+            authLoginTotal.inc({ result: 'pending_2fa', reason: 'requires_2fa' });
             const tempToken = jwt.sign(
                 { id: user.id, twoFactorPending: true },
                 config.jwt.secret,
@@ -230,6 +270,7 @@ app.post('/login', async (req, res) =>
             { expiresIn: config.jwt.expiresIn, algorithm: config.jwt.algorithm }
         );
 
+        authLoginTotal.inc({ result: 'success', reason: 'password' });
         res.json
         ({
             message: 'Login successful',
@@ -239,6 +280,7 @@ app.post('/login', async (req, res) =>
     }
     catch (error)
     {
+        authLoginTotal.inc({ result: 'error', reason: 'server_error' });
         console.error('Error during login:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
@@ -395,9 +437,10 @@ app.post('/2fa/verify', async (req, res) =>
         if (!totp_secret) return res.status(400).json({ error: 'Run /2fa/setup first' });
 
         const valid = speakeasy.totp.verify({ secret: totp_secret, encoding: 'base32', token: totpToken, window: 1 });
-        if (!valid) return res.status(400).json({ error: 'Invalid TOTP code' });
+        if (!valid) { auth2faTotal.inc({ action: 'verify', result: 'failure' }); return res.status(400).json({ error: 'Invalid TOTP code' }); }
 
         await pool.query('UPDATE user_auth SET totp_enabled = TRUE WHERE id = $1', [decoded.id]);
+        auth2faTotal.inc({ action: 'verify', result: 'success' });
         res.json({ message: '2FA enabled successfully' });
     }
     catch (error)
@@ -426,9 +469,10 @@ app.post('/2fa/disable', async (req, res) =>
         if (!totp_enabled) return res.status(400).json({ error: '2FA is not enabled' });
 
         const valid = speakeasy.totp.verify({ secret: totp_secret, encoding: 'base32', token: totpToken, window: 1 });
-        if (!valid) return res.status(400).json({ error: 'Invalid TOTP code' });
+        if (!valid) { auth2faTotal.inc({ action: 'disable', result: 'failure' }); return res.status(400).json({ error: 'Invalid TOTP code' }); }
 
         await pool.query('UPDATE user_auth SET totp_secret = NULL, totp_enabled = FALSE WHERE id = $1', [decoded.id]);
+        auth2faTotal.inc({ action: 'disable', result: 'success' });
         res.json({ message: '2FA disabled successfully' });
     }
     catch (error)
@@ -458,7 +502,7 @@ app.post('/2fa/authenticate', async (req, res) =>
 
         const user = result.rows[0];
         const valid = speakeasy.totp.verify({ secret: user.totp_secret, encoding: 'base32', token: totpToken, window: 1 });
-        if (!valid) return res.status(400).json({ error: 'Invalid TOTP code' });
+        if (!valid) { auth2faTotal.inc({ action: 'authenticate', result: 'failure' }); return res.status(400).json({ error: 'Invalid TOTP code' }); }
 
         const token = jwt.sign(
             { id: user.id, email: user.email },
@@ -466,6 +510,8 @@ app.post('/2fa/authenticate', async (req, res) =>
             { expiresIn: config.jwt.expiresIn, algorithm: config.jwt.algorithm }
         );
 
+        authLoginTotal.inc({ result: 'success', reason: '2fa' });
+        auth2faTotal.inc({ action: 'authenticate', result: 'success' });
         res.json({ message: 'Login successful', token, user: { id: user.id, email: user.email, name: user.name } });
     }
     catch (error)
