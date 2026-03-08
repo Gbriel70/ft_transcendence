@@ -3,6 +3,8 @@ const { ethers } = require('ethers');
 const fs         = require('fs');
 const path       = require('path');
 const {  getSecret, savePrivateKeyToVault, getPrivateKeyFromVault, getServiceConfig  } = require('./vault');
+const client = require('prom-client');
+
 
 const app = express();
 app.use(express.json());
@@ -11,6 +13,41 @@ let config;
 let provider;
 let contract;
 let ownerWallet;
+
+// ==================== METRICS ====================
+const register = client.register;
+register.setDefaultLabels({ service: 'blockchain' });
+client.collectDefaultMetrics({ register });
+
+const walletsCreatedTotal = new client.Counter({
+  name: 'blockchain_wallets_created_total',
+  help: 'Total number of wallets successfully created',
+  registers: [register],
+});
+
+const txTotal = new client.Counter({
+  name: 'blockchain_tx_total',
+  help: 'Total number of blockchain transactions by type',
+  labelNames: ['type'],
+  registers: [register],
+});
+
+const txErrorsTotal = new client.Counter({
+  name: 'blockchain_tx_errors_total',
+  help: 'Total number of failed blockchain transactions by type',
+  labelNames: ['type'],
+  registers: [register],
+});
+
+const txDuration = new client.Histogram({
+  name: 'blockchain_tx_duration_seconds',
+  help: 'Duration of blockchain transactions in seconds',
+  labelNames: ['type'],
+  buckets: [0.5, 1, 2, 5, 10, 30],
+  registers: [register],
+});
+// =====================================================
+
 
 // ─── CONTRACT ABI ─────────────────────────────────────────────────────────────
 
@@ -72,6 +109,13 @@ async function initializeBlockchain()
 
 // ─── ROUTES ───────────────────────────────────────────────────────────────────
 
+// GET /metrics -> Prometheus scrape endpoint
+app.get('/metrics', async (req, res) =>
+{
+  res.set('Content-Type', register.contentType);
+  res.send(await register.metrics());
+});
+
 // POST /wallets — Cria wallet para um usuário
 app.post('/wallets', async (req, res) =>
 {
@@ -84,7 +128,7 @@ app.post('/wallets', async (req, res) =>
 
         // 1. Gerar keypair para o usuário
         const userWallet = ethers.Wallet.createRandom().connect(provider);
-        
+
         // 2. Owner envia ETH para a wallet pagar gas futuro
         const fundTx = await ownerWallet.sendTransaction({
             to:    userWallet.address,
@@ -100,6 +144,9 @@ app.post('/wallets', async (req, res) =>
         // 4. Salvar chave privada no Vault (SEGURO!)
         await savePrivateKeyToVault(user_id, userWallet.privateKey);
 
+        walletsCreatedTotal.inc();
+        txTotal.inc({ type: 'wallet_creation' });
+
         res.json({
             user_id,
             wallet_address: userWallet.address,
@@ -109,6 +156,7 @@ app.post('/wallets', async (req, res) =>
     catch (error)
     {
         console.error('Error creating wallet:', error);
+        txErrorsTotal.inc({ type: 'wallet_creation' });
         res.status(500).json({ error: error.message });
     }
 });
@@ -126,11 +174,13 @@ app.get('/wallets/:user_id', async (req, res) =>
             return res.status(404).json({ error: 'Wallet not found for this user' });
         }
 
+        txTotal.inc({ type: 'get_wallet' });
         res.json({ wallet_address: walletAddress });
     }
     catch (error)
     {
         console.error('Error fetching wallet:', error);
+        txErrorsTotal.inc({ type: 'get_wallet' });
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -150,6 +200,7 @@ app.get('/wallets/:address/balance', async (req, res) =>
 
         const balance = await contract.getBalance(address);
 
+        txTotal.inc({ type: 'get_balance' });
         res.json
         ({
             address,
@@ -159,6 +210,7 @@ app.get('/wallets/:address/balance', async (req, res) =>
     catch (error)
     {
         console.error('Error fetching balance:', error);
+        txErrorsTotal.inc({ type: 'get_balance' });
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -166,6 +218,7 @@ app.get('/wallets/:address/balance', async (req, res) =>
 // POST /transfer - transferir usando a chave do usuário
 app.post('/transfer', async (req, res) =>
 {
+    const end = txDuration.startTimer({ type: 'transfer' });
     try
     {
         const { from_user_id, to_user_id, amount } = req.body;
@@ -195,6 +248,9 @@ app.post('/transfer', async (req, res) =>
         const tx = await contractWithUser.transfer(toAddress, BigInt(amount));
         await tx.wait();
 
+        txTotal.inc({ type: 'transfer' });
+        end();
+
         res.json({
             message: 'Transfer successful',
             tx_hash: tx.hash,
@@ -206,6 +262,8 @@ app.post('/transfer', async (req, res) =>
     catch (error)
     {
         console.error('Transfer error:', error);
+        txErrorsTotal.inc({ type: 'transfer' });
+        end();
         res.status(500).json({ error: error.message });
     }
 });
