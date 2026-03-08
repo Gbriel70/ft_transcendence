@@ -68,3 +68,6 @@
 | Create custom Grafana dashboards | Sub-task | needs update |
 | Set up alerting rules | Sub-task | needs update |
 | Secure access to Grafana | Sub-task | Ongoing |
+
+
+Dashboard precisa ser atualizado com os dados do blockchain

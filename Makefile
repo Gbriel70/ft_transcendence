@@ -49,6 +49,14 @@ down-hard:
 	$(DC) down -v --remove-orphans
 	docker volume prune -f
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  make prune  ──  limpa TODO o ambiente Docker (imagens, volumes, cache…)
+# ══════════════════════════════════════════════════════════════════════════════
+prune:
+	@echo "$(CYAN)$(BOLD)[Docker] Purgando todo o ambiente Docker...$(RESET)"
+	docker system prune -a --volumes
+	@echo "$(GREEN)$(BOLD)[OK] Ambiente Docker limpo$(RESET)"
+
 logs:
 	$(DC) logs -f
 
@@ -63,8 +71,9 @@ help:
 	@echo "  make re       Destrói tudo (volumes) e sobe do zero"
 	@echo "  make clean    Para e remove containers + volumes"
 	@echo "  make down     Apenas para os containers (mantém volumes)"
+	@echo "  make prune    Limpa TODO o ambiente Docker"
 	@echo "  make logs     Acompanha os logs em tempo real"
 	@echo "  make ps       Lista o status dos serviços"
 	@echo ""
 
-.PHONY: all certs build up down down-hard re clean logs ps help
+.PHONY: all certs build up down down-hard re clean prune logs ps help

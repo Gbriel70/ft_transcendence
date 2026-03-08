@@ -216,6 +216,7 @@ services:
       - cadvisor
       - nginx_exporter
       - alertmanager
+      - postgres_exporter
     networks:
       - minibank-network
     restart: unless-stopped
@@ -292,6 +293,19 @@ services:
       - "-nginx.scrape-uri=http://nginx:80/stub_status"
     depends_on:
       - nginx
+    networks:
+      - minibank-network
+    restart: unless-stopped
+
+  # ==================== POSTGRES EXPORTER ====================
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: postgres_exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://admin:admin123@postgres:5432/minibank_db?sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - minibank-network
     restart: unless-stopped
