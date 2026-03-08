@@ -242,6 +242,36 @@ const api = {
         return handleResponse(response);
     },
 
+    // ─── GDPR ────────────────────────────────────────────────────────────────
+
+    gdprExport: async () => {
+        const response = await fetch(`${API_BASE}/auth/gdpr/export`, {
+            headers: getHeaders()
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Export failed');
+        }
+        return response.blob();
+    },
+
+    gdprDeleteRequest: async () => {
+        const response = await fetch(`${API_BASE}/auth/gdpr/delete-request`, {
+            method: 'POST',
+            headers: getHeaders()
+        });
+        return handleResponse(response);
+    },
+
+    gdprConfirmDelete: async (token) => {
+        const response = await fetch(`${API_BASE}/auth/gdpr/confirm-delete`, {
+            method: 'DELETE',
+            headers: getHeaders(),
+            body: JSON.stringify({ token })
+        });
+        return handleResponse(response);
+    },
+
     authenticate2FA: async (tempToken, token) => {
         const response = await fetch(`${API_BASE}/auth/2fa/authenticate`, {
             method: 'POST',

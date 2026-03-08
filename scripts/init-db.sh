@@ -71,6 +71,16 @@ psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER:-admin}" --dbname "minibank_
     ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS profile_picture TEXT;
     ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
+    -- GDPR deletion requests table
+    CREATE TABLE IF NOT EXISTS gdpr_delete_requests (
+        id SERIAL PRIMARY KEY,
+        auth_user_id INTEGER REFERENCES user_auth(id) ON DELETE CASCADE,
+        token VARCHAR(255) UNIQUE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_gdpr_token ON gdpr_delete_requests(token);
+
     -- Índices
     CREATE INDEX IF NOT EXISTS idx_user_auth_email ON user_auth(email);
     CREATE INDEX IF NOT EXISTS idx_user_profiles_auth_user_id ON user_profiles(auth_user_id);

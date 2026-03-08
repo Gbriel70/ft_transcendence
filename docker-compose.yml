@@ -88,6 +88,14 @@ services:
       VAULT_ADDR: http://vault:8200
       SERVICE_NAME: auth
       USER_SERVICE_URL: http://user_service:3002
+      # GDPR email settings — set these in your .env file to enable outgoing emails
+      APP_URL: ${APP_URL:-https://localhost}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@minibank.local}
     volumes:
       - vault_data:/vault-keys:ro
     depends_on:

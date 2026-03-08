@@ -4,12 +4,14 @@ const V = '?v=8';
 const THEME_STORAGE_KEY = 'theme';
 
 const routes = {
-    '/':          () => import('./views/login.js'     + V),
-    '/login':     () => import('./views/login.js'     + V),
-    '/register':  () => import('./views/register.js'  + V),
-    '/dashboard': () => import('./views/dashboard.js' + V),
-    '/profile':   () => import('./views/profile.js'   + V),
-    '/terms':     () => import('./views/terms.js'     + V),
+    '/':               () => import('./views/login.js'        + V),
+    '/login':          () => import('./views/login.js'        + V),
+    '/register':       () => import('./views/register.js'    + V),
+    '/dashboard':      () => import('./views/dashboard.js'   + V),
+    '/profile':        () => import('./views/profile.js'     + V),
+    '/terms':          () => import('./views/terms.js'       + V),
+    '/gdpr':           () => import('./views/gdpr.js'        + V),
+    '/gdpr-confirm':   () => import('./views/gdpr-confirm.js'+ V),
 };
 
 const getStoredTheme = () => {
@@ -44,7 +46,9 @@ const setupThemeToggle = () => {
 
 const router = async () => {
     const content = document.getElementById('app');
-    let request = location.hash.slice(1).toLowerCase() || '/';
+    const rawHash = location.hash.slice(1).toLowerCase() || '/';
+    // Strip query string so routes like /gdpr-confirm?token=abc resolve correctly
+    let request = rawHash.split('?')[0] || '/';
 
     if (request === '') request = '/';
 

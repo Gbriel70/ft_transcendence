@@ -207,6 +207,29 @@ app.get('/users/me', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /users/me/data - GDPR: return all profile data for the authenticated user
+app.get('/users/me/data', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = req.user.id;
+    const pool = await getPool();
+
+    const result = await pool.query(
+      'SELECT id, auth_user_id, name, wallet_address, created_at, updated_at FROM user_profiles WHERE auth_user_id = $1',
+      [authUserId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    res.json(result.rows[0]);
+  }
+  catch (error) {
+    console.error('Error fetching GDPR profile data:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /users/by-username/:username - Buscar usuário por username
 app.get('/users/by-username/:username', async (req, res) => {
   try {

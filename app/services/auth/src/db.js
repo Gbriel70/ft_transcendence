@@ -100,6 +100,16 @@ async function initDatabase()
 
         ALTER TABLE user_auth ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(255);
         ALTER TABLE user_auth ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+
+        CREATE TABLE IF NOT EXISTS gdpr_delete_requests (
+            id SERIAL PRIMARY KEY,
+            auth_user_id INTEGER REFERENCES user_auth(id) ON DELETE CASCADE,
+            token VARCHAR(255) UNIQUE NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_gdpr_token ON gdpr_delete_requests(token);
     `;
 
     try 

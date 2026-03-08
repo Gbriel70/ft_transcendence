@@ -3,6 +3,8 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 const client = require('prom-client');
 const { getPool, initDatabase } = require('./db');
 const vaultClient = require('./vault');
@@ -538,6 +540,206 @@ app.get('/2fa/status', async (req, res) =>
     catch (error)
     {
         console.error('Error checking 2FA status:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ─── Email Helper ─────────────────────────────────────────────────────────────
+
+function createMailTransporter() {
+    const host = process.env.SMTP_HOST;
+    if (!host) return null;
+    return nodemailer.createTransport({
+        host,
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: process.env.SMTP_SECURE === 'true',
+        auth: process.env.SMTP_USER ? {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS || '',
+        } : undefined,
+    });
+}
+
+async function sendEmail(to, subject, html) {
+    const from = process.env.SMTP_FROM || 'noreply@minibank.local';
+    const transporter = createMailTransporter();
+    if (!transporter) {
+        console.log(`[EMAIL] To: ${to} | Subject: ${subject}\n${html.replace(/<[^>]+>/g, '')}`);
+        return;
+    }
+    await transporter.sendMail({ from, to, subject, html });
+}
+
+// ─── GDPR ─────────────────────────────────────────────────────────────────────
+
+// GET /gdpr/export — download all personal data as JSON
+app.get('/gdpr/export', async (req, res) =>
+{
+    try
+    {
+        const decoded = requireAuth(req, res);
+        if (!decoded) return;
+
+        const pool = await getPool();
+
+        // Fetch auth record (exclude password_hash & totp_secret)
+        const authResult = await pool.query(
+            'SELECT id, email, name, created_at FROM user_auth WHERE id = $1',
+            [decoded.id]
+        );
+        if (authResult.rows.length === 0)
+            return res.status(404).json({ error: 'User not found' });
+
+        const authData = authResult.rows[0];
+
+        // Fetch profile from user service
+        const userServiceUrl = process.env.USER_SERVICE_URL || 'http://user_service:3002';
+        let profileData = null;
+        try
+        {
+            const profileRes = await fetch(`${userServiceUrl}/users/me/data`, {
+                headers: {
+                    'Authorization': req.headers['authorization'],
+                    'x-internal-secret': config.internalSecret,
+                }
+            });
+            if (profileRes.ok) profileData = await profileRes.json();
+        }
+        catch (e)
+        {
+            console.warn('Could not fetch profile data for export:', e.message);
+        }
+
+        const exportData = {
+            exported_at: new Date().toISOString(),
+            account: {
+                id: authData.id,
+                email: authData.email,
+                name: authData.name,
+                registered_at: authData.created_at,
+            },
+            profile: profileData || null,
+        };
+
+        await sendEmail(
+            authData.email,
+            'MiniBank — Your data export',
+            `<p>Hello ${authData.name},</p>
+             <p>Your personal data export was downloaded on ${new Date().toUTCString()}.</p>
+             <p>The exported file contains all data we hold about your account.</p>
+             <p>If you did not request this, please contact support immediately.</p>`
+        );
+
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', 'attachment; filename="my-minibank-data.json"');
+        res.send(JSON.stringify(exportData, null, 2));
+    }
+    catch (error)
+    {
+        console.error('GDPR export error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// POST /gdpr/delete-request — request account deletion; sends confirmation email
+app.post('/gdpr/delete-request', async (req, res) =>
+{
+    try
+    {
+        const decoded = requireAuth(req, res);
+        if (!decoded) return;
+
+        const pool = await getPool();
+
+        const authResult = await pool.query(
+            'SELECT id, email, name FROM user_auth WHERE id = $1',
+            [decoded.id]
+        );
+        if (authResult.rows.length === 0)
+            return res.status(404).json({ error: 'User not found' });
+
+        const user = authResult.rows[0];
+
+        // Remove any existing pending request for this user
+        await pool.query('DELETE FROM gdpr_delete_requests WHERE auth_user_id = $1', [user.id]);
+
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 h
+
+        await pool.query(
+            'INSERT INTO gdpr_delete_requests (auth_user_id, token, expires_at) VALUES ($1, $2, $3)',
+            [user.id, token, expiresAt]
+        );
+
+        const APP_URL = process.env.APP_URL || 'https://localhost';
+        const confirmUrl = `${APP_URL}/#/gdpr-confirm?token=${token}`;
+
+        await sendEmail(
+            user.email,
+            'MiniBank — Confirm account deletion',
+            `<p>Hello ${user.name},</p>
+             <p>We received a request to permanently delete your MiniBank account and all associated data.</p>
+             <p><strong>This action is irreversible.</strong></p>
+             <p>To confirm, click the link below (valid for 24 hours):</p>
+             <p><a href="${confirmUrl}">${confirmUrl}</a></p>
+             <p>If you did not request this, you can safely ignore this email — your account will remain active.</p>`
+        );
+
+        res.json({ message: 'Confirmation email sent. Please check your inbox to confirm deletion.' });
+    }
+    catch (error)
+    {
+        console.error('GDPR delete-request error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// DELETE /gdpr/confirm-delete — confirm deletion via token
+app.delete('/gdpr/confirm-delete', async (req, res) =>
+{
+    try
+    {
+        const { token } = req.body;
+        if (!token) return res.status(400).json({ error: 'Token required' });
+
+        const pool = await getPool();
+
+        const reqResult = await pool.query(
+            `SELECT r.auth_user_id, r.expires_at, u.email, u.name
+             FROM gdpr_delete_requests r
+             JOIN user_auth u ON u.id = r.auth_user_id
+             WHERE r.token = $1`,
+            [token]
+        );
+
+        if (reqResult.rows.length === 0)
+            return res.status(404).json({ error: 'Invalid or already used token' });
+
+        const { auth_user_id, expires_at, email, name } = reqResult.rows[0];
+
+        if (new Date() > new Date(expires_at))
+        {
+            await pool.query('DELETE FROM gdpr_delete_requests WHERE token = $1', [token]);
+            return res.status(410).json({ error: 'Token has expired. Please submit a new deletion request.' });
+        }
+
+        // Delete the user — CASCADE handles user_profiles and gdpr_delete_requests
+        await pool.query('DELETE FROM user_auth WHERE id = $1', [auth_user_id]);
+
+        await sendEmail(
+            email,
+            'MiniBank — Your account has been deleted',
+            `<p>Hello ${name},</p>
+             <p>Your MiniBank account and all associated personal data have been permanently deleted as requested.</p>
+             <p>This includes your profile, transaction history, and wallet information.</p>
+             <p>We are sorry to see you go. If you ever change your mind, you are always welcome to create a new account.</p>`
+        );
+
+        res.json({ message: 'Account permanently deleted.' });
+    }
+    catch (error)
+    {
+        console.error('GDPR confirm-delete error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

@@ -240,6 +240,24 @@ const ProfileView = {
                             </div>
                         </div>
                     </div>
+                    <!-- Privacy & GDPR -->
+                    <div class="card-modern" id="gdpr-card">
+                        <div class="card-header-modern">
+                            <h2>Privacy &amp; Data</h2>
+                        </div>
+                        <div class="form-modern">
+                            <p style="color:var(--text-secondary);margin-bottom:1.25rem;line-height:1.6;">
+                                Under GDPR you have the right to access, export, and erase your personal data.
+                                Visit the Privacy Center to exercise these rights.
+                            </p>
+                            <button type="button" id="gdpr-btn" class="btn-primary-modern" style="width:auto;padding:0.6rem 1.5rem;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:6px;">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                </svg>
+                                Open Privacy Center
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </main>
 
@@ -249,13 +267,13 @@ const ProfileView = {
                     <div class="footer-links">
                         <a href="#/terms">Privacy Policy</a>
                         <a href="#/terms">Terms of Service</a>
+                        <a href="#/gdpr">Privacy Center</a>
                     </div>
                     <div class="footer-copyright">
                         © 2026 MiniBank. All rights reserved.
                     </div>
                 </div>
-            </footer>
-        `;
+            </footer>`;
     },
     afterRender: async () => {
         const user = api.getCurrentUser();
@@ -460,6 +478,11 @@ const ProfileView = {
                 actionButtons.style.display = 'block';
             });
         }
+
+        // ─── GDPR ─────────────────────────────────────────────────────────────
+        document.getElementById('gdpr-btn')?.addEventListener('click', () => {
+            window.location.hash = '/gdpr';
+        });
     }
 };
 
