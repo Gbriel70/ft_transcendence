@@ -1,0 +1,31 @@
+# ─── Elasticsearch configuration ─────────────────────────────────────────────
+# Single-node cluster for MiniBank log storage
+
+cluster.name: minibank-logs
+node.name: elasticsearch
+
+# Accept connections from all interfaces (Docker internal network)
+network.host: 0.0.0.0
+
+# Single-node discovery — no multi-node quorum needed
+discovery.type: single-node
+
+# ─── Security ───────────────────────────────────────────────────────────────
+# Built-in security (elastic user + API key auth)
+# Password is set via ELASTIC_PASSWORD env var in docker-compose
+xpack.security.enabled: true
+xpack.security.authc.api_key.enabled: true
+
+# ─── Monitoring ─────────────────────────────────────────────────────────────
+# Disable self-monitoring to reduce overhead
+xpack.monitoring.enabled: false
+xpack.monitoring.elasticsearch.collection.enabled: false
+
+# ─── Index management ───────────────────────────────────────────────────────
+# Prevent accidental wildcard deletes
+action.destructive_requires_name: true
+
+# ─── Performance ────────────────────────────────────────────────────────────
+# Disable unnecessary features for a log-only cluster
+indices.memory.index_buffer_size: 10%
+bootstrap.memory_lock: false

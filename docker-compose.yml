@@ -318,6 +318,105 @@ services:
       - minibank-network
     restart: unless-stopped
 
+  # ==================== ELASTICSEARCH ====================
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.20
+    container_name: elasticsearch
+    environment:
+      - cluster.name=minibank-logs
+      - node.name=elasticsearch
+      - discovery.type=single-node
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-minibank_elastic}
+      - xpack.security.enabled=true
+      - xpack.monitoring.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elk_data:/usr/share/elasticsearch/data
+      - ./app/services/monitoring/elasticsearch/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
+    ports:
+      - "9200:9200"
+    networks:
+      - minibank-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf -u elastic:${ELASTIC_PASSWORD:-minibank_elastic} http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+  # ==================== LOGSTASH ====================
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.17.20
+    container_name: logstash
+    environment:
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-minibank_elastic}
+      - "LS_JAVA_OPTS=-Xms256m -Xmx256m"
+    volumes:
+      - ./app/services/monitoring/logstash/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./app/services/monitoring/logstash/pipeline:/usr/share/logstash/pipeline:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - minibank-network
+    restart: unless-stopped
+
+  # ==================== KIBANA ====================
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.20
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=elastic
+      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD:-minibank_elastic}
+      - xpack.security.enabled=true
+      - xpack.monitoring.enabled=false
+    volumes:
+      - ./app/services/monitoring/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml:ro
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - minibank-network
+    restart: unless-stopped
+
+  # ==================== FILEBEAT ====================
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:7.17.20
+    container_name: filebeat
+    user: root
+    command: filebeat -e -strict.perms=false
+    environment:
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-minibank_elastic}
+    volumes:
+      - ./app/services/monitoring/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - logstash
+    networks:
+      - minibank-network
+    restart: unless-stopped
+
+  # ==================== ELK SETUP (one-shot) ====================
+  elk_setup:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.20
+    container_name: elk_setup
+    environment:
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-minibank_elastic}
+    volumes:
+      - ./app/services/monitoring/elk/setup-elk.sh:/setup-elk.sh:ro
+    entrypoint: ["/bin/bash", "/setup-elk.sh"]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - minibank-network
+    restart: "no"
+
 networks:
   minibank-network:
     driver: bridge
@@ -329,3 +428,4 @@ volumes:
   grafana_data:
   uploads_data:
   hardhat_artifacts:
+  elk_data:

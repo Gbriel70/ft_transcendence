@@ -1,0 +1,20 @@
+# ─── Logstash configuration ───────────────────────────────────────────────────
+
+# Bind HTTP API to all interfaces (used for health checks)
+http.host: "0.0.0.0"
+http.port: 9600
+
+# Pipeline configuration path
+path.config: /usr/share/logstash/pipeline
+
+# ─── Performance ────────────────────────────────────────────────────────────
+# Number of worker threads — 1 is fine for development
+pipeline.workers: 2
+pipeline.batch.size: 125
+pipeline.batch.delay: 50
+
+# ─── Monitoring ─────────────────────────────────────────────────────────────
+xpack.monitoring.enabled: false
+
+# ─── Logging ────────────────────────────────────────────────────────────────
+log.level: info
