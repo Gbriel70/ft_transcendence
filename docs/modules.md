@@ -70,4 +70,5 @@
 | Secure access to Grafana | Sub-task | Ongoing |
 
 
-Dashboard precisa ser atualizado com os dados do blockchain
+Dashboard precisa ser atualizado com os dados do blockchain:
+Current balance  and recent transactions needs to be correctly displayed in the dashboard. 
