@@ -1,0 +1,236 @@
+{
+  "title": "Blockchain & Transactions",
+  "uid": "blockchain-transactions",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "15s",
+  "time": { "from": "now-3h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Total Wallets Created",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "blockchain_wallets_created_total",
+          "legendFormat": "wallets",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "value": null, "color": "blue" }] } },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Successful Transfers (last 1h)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "expr": "increase(blockchain_tx_total{type=\"transfer\"}[1h])",
+          "legendFormat": "transfers",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "value": null, "color": "green" }] } },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "TX Errors (last 1h)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "increase(blockchain_tx_errors_total[1h])",
+          "legendFormat": "errors",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "value": null, "color": "green" }, { "value": 1, "color": "yellow" }, { "value": 10, "color": "red" }] }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "TX Error Rate (last 5m)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(blockchain_tx_errors_total[5m])) / sum(rate(blockchain_tx_total[5m])) * 100",
+          "legendFormat": "error %",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "value": null, "color": "green" }, { "value": 5, "color": "yellow" }, { "value": 20, "color": "red" }] }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Blockchain TX Rate by Type",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "expr": "sum(rate(blockchain_tx_total[5m])) by (type)",
+          "legendFormat": "{{type}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "lineWidth": 2 } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Blockchain TX Error Rate by Type",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        {
+          "expr": "sum(rate(blockchain_tx_errors_total[5m])) by (type)",
+          "legendFormat": "{{type}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "lineWidth": 2 }, "color": { "fixedColor": "red", "mode": "fixed" } },
+        "overrides": []
+      }
+    },
+
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Transfer Duration P50 / P95 / P99",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(blockchain_tx_duration_seconds_bucket{type=\"transfer\"}[5m])) by (le))",
+          "legendFormat": "P50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(blockchain_tx_duration_seconds_bucket{type=\"transfer\"}[5m])) by (le))",
+          "legendFormat": "P95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(blockchain_tx_duration_seconds_bucket{type=\"transfer\"}[5m])) by (le))",
+          "legendFormat": "P99",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Wallet Creation Rate",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        {
+          "expr": "rate(blockchain_wallets_created_total[5m])",
+          "legendFormat": "wallets/s",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(blockchain_tx_errors_total{type=\"wallet_creation\"}[5m])",
+          "legendFormat": "wallet errors/s",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "wallet errors/s" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
+      }
+    },
+
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Transaction Amount Distribution (tokens/s) — transfer",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(transaction_amount_eth_bucket{type=\"transfer\"}[5m])) by (le))",
+          "legendFormat": "P50 amount",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.90, sum(rate(transaction_amount_eth_bucket{type=\"transfer\"}[5m])) by (le))",
+          "legendFormat": "P90 amount",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(transaction_amount_eth_bucket{type=\"transfer\"}[5m])) by (le))",
+          "legendFormat": "P99 amount",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Transaction Service — Request Rate by Type",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [
+        {
+          "expr": "sum(rate(transaction_total[5m])) by (type)",
+          "legendFormat": "{{type}} success",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(transaction_errors_total[5m])) by (type)",
+          "legendFormat": "{{type}} error",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" },
+        "overrides": []
+      }
+    }
+  ]
+}
