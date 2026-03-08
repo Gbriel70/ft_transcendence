@@ -4,6 +4,12 @@ server.name: kibana
 server.host: "0.0.0.0"
 server.port: 5601
 
+# Allow access through the nginx reverse proxy at /kibana/
+server.basePath: "/kibana"
+server.rewriteBasePath: true
+# Trust nginx as a proxy
+server.publicBaseUrl: "https://localhost:8443/kibana"
+
 # ─── Elasticsearch connection ───────────────────────────────────────────────
 # Credentials are passed via env vars ELASTICSEARCH_USERNAME / ELASTICSEARCH_PASSWORD
 elasticsearch.hosts: ["http://elasticsearch:9200"]
