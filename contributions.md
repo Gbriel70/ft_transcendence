@@ -14,13 +14,6 @@ Snapshot date: 2026-03-16.
 - `gabastos` -> `Gabriel Bastos Sobral`
 - `sdavi-al` -> `sdavi-al`
 
-## Commit volume (grouped by login)
-
-- `gcosta-m`: **55 commits**
-- `fde-alen`: **29 commits**
-- `gabastos`: **15 commits**
-- `sdavi-al`: **1 commit**
-
 > Note: commit count alone does not fully represent complexity/impact; this file also summarizes module-level impact.
 
 ## Contribution summary by teammate
