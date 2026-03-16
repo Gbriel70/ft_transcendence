@@ -1,5 +1,4 @@
 import api from '../services/api.js?v=8';
-import { showNotification } from '../utils/notifications.js?v=8';
 
 const GdprView = {
     render: async () => {
@@ -186,9 +185,9 @@ const GdprView = {
                 a.click();
                 URL.revokeObjectURL(url);
                 a.remove();
-                showNotification('Data export downloaded. A confirmation email has been sent.', 'success');
+                window.showNotification('Data export downloaded. A confirmation email has been sent.', 'success');
             } catch (err) {
-                showNotification(err.message || 'Export failed. Please try again.', 'error');
+                window.showNotification(err.message || 'Export failed. Please try again.', 'error');
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = original;
@@ -224,12 +223,12 @@ const GdprView = {
             confirmBtn.textContent = 'Sending…';
             try {
                 await api.gdprDeleteRequest();
-                showNotification('Deletion request sent. Check your email to confirm.', 'success');
+                window.showNotification('Deletion request sent. Check your email to confirm.', 'success');
                 confirmBox.style.display = 'none';
                 requestBtn.style.display = '';
                 confirmInput.value = '';
             } catch (err) {
-                showNotification(err.message || 'Request failed. Please try again.', 'error');
+                window.showNotification(err.message || 'Request failed. Please try again.', 'error');
                 confirmBtn.disabled = false;
                 confirmBtn.textContent = 'Send Deletion Request';
             }

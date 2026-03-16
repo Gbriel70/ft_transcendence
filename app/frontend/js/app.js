@@ -1,5 +1,5 @@
-// v8 — sessionStorage isolation: token/user per-tab, not shared across tabs
-const V = '?v=8';
+// v9 — sessionStorage isolation: token/user per-tab, not shared across tabs
+const V = '?v=9';
 
 const THEME_STORAGE_KEY = 'theme';
 

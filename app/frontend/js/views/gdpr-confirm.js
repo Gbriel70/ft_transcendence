@@ -1,5 +1,4 @@
 import api from '../services/api.js?v=8';
-import { showNotification } from '../utils/notifications.js?v=8';
 
 // Parses query string from the hash portion: #/gdpr-confirm?token=xxx
 function getTokenFromHash() {
@@ -103,7 +102,7 @@ const GdprConfirmView = {
                 btn.disabled = false;
                 btn.textContent = 'Yes, permanently delete my account';
                 if (cancelBtn) cancelBtn.disabled = false;
-                showNotification(err.message || 'Deletion failed. The link may have expired.', 'error');
+                window.showNotification(err.message || 'Deletion failed. The link may have expired.', 'error');
             }
         });
     },
