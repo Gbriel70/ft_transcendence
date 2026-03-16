@@ -35,7 +35,7 @@
   - Configure exporters and integrations. [needs_update] update blockchain exporter
   - Create custom Grafana dashboards. [needs_update]
   - Set up alerting rules. [needs_update]
-  - Secure access to Grafana. [Ongoing] [Grafana is directly exposed on host port 3000 (not only through Nginx/TLS): docker-compose.yml:187. We dont have Grafana proxy/access-control rules in Nginx config, so the “secured via Nginx” claim in docs appears outdated: default.conf, MONITORING.md:183-196 . Harden this now - remove direct 3000 publish and route Grafana through Nginx HTTPS with IP allowlist/auth]
+  - Secure access to Grafana. [Ongoing] 
 
 ## 8. Data and Analytics
 #### - Minor: GDPR compliance features.
@@ -59,4 +59,10 @@
 - Dashboard precisa ser atualizado com os dados do blockchain:
 Current balance  and recent transactions needs to be correctly displayed in the dashboard.
 
-- responsavidade do frontend precisa ser melhorada para mobile (atualmente o layout quebra em telas pequenas)
+- responsividade do frontend precisa ser melhorada para mobile (atualmente o layout quebra em telas pequenas)
+
+- falar sobre cargos no readme
+
+- sem erros no console do navegador, não pode ter nenhum erro
+
+
