@@ -72,7 +72,7 @@ Snapshot date: 2026-03-16.
 
 ## Project-level module ownership (commit-derived)
 
-- **Web / Frontend UX:** primarily `fde-alen`, `sdavi-al`, with support from `gabastos` and `gcosta-m`
+- **Web / Frontend UX:** primarily `sdavi-al`,`fde-alen`, with support from `gabastos` and `gcosta-m`
 - **User Management:** primarily `gabastos` and `fde-alen`, with support from `gcosta-m`
 - **Cybersecurity (WAF + Vault):** primarily `gcosta-m`, with supporting integration by `fde-alen`
 - **DevOps (ELK + Monitoring):** primarily `fde-alen`
