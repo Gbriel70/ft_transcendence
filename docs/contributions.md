@@ -54,6 +54,7 @@ Snapshot date: 2026-03-16.
 - Profile flow fixes and API debugging
 - Docker Compose/DNS stability fixes
 - NGINX/frontend register flow corrections
+- 2FA Authentication
 
 **Representative commits**
 - `update to modify profile picture`
@@ -74,7 +75,7 @@ Snapshot date: 2026-03-16.
 
 - **Web / Frontend UX:** primarily `sdavi-al`,`fde-alen`, with support from `gabastos` and `gcosta-m`
 - **User Management:** primarily `gabastos` and `fde-alen`, with support from `gcosta-m`
-- **Cybersecurity (WAF + Vault):** primarily `gcosta-m`, with supporting integration by `fde-alen`
+- **Cybersecurity (WAF + Vault):** primarily `gcosta-m`, with support from `gabastos` and supporting integration by `fde-alen`
 - **DevOps (ELK + Monitoring):** primarily `fde-alen`
 - **Blockchain:** primarily `gcosta-m`, with integration support from `fde-alen`
 - **GDPR:** primarily `fde-alen`
