@@ -54,21 +54,9 @@
 
 # Pending
 
-| Task | Type | Status |
-|------|------|--------|
-| Store tournament scores on the Blockchain | Major | Ongoing |
-| Infrastructure for log management using ELK (Elasticsearch, Logstash, Kibana) | Major | Done ✓ |
-| Implement remote authentication with OAuth 2.0 (Google, GitHub, 42, etc.) | Minor | Pending |
-| Implement a complete 2FA (Two-Factor Authentication) system for the users | Minor | Pending |
-| GDPR compliance features | Minor | Pending |
-|||
-| Users can add other users as friends and see their online status | Sub-task | Pending |
-| Users have a profile page displaying their information | Sub-task | O que temos conta? |
-| Configure exporters and integrations | Sub-task | needs update |
-| Create custom Grafana dashboards | Sub-task | needs update |
-| Set up alerting rules | Sub-task | needs update |
-| Secure access to Grafana | Sub-task | Ongoing |
 
 
-Dashboard precisa ser atualizado com os dados do blockchain:
-Current balance  and recent transactions needs to be correctly displayed in the dashboard. 
+- Dashboard precisa ser atualizado com os dados do blockchain:
+Current balance  and recent transactions needs to be correctly displayed in the dashboard.
+
+- responsavidade do frontend precisa ser melhorada para mobile (atualmente o layout quebra em telas pequenas)

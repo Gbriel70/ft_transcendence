@@ -43,7 +43,7 @@ watch -n5 'curl -sf -u elastic:${ELASTIC_PASSWORD:-minibank_elastic} http://loca
 | URL | Notes |
 |-----|-------|
 | https://localhost:8443/kibana/ | Via nginx TLS (recommended) |
-| http://localhost:5601 | Direct (dev only) |
+| http://localhost:5601/kibana/app/home| Direct (dev only) |
 
 Login: **elastic** / **`ELASTIC_PASSWORD`**
 
