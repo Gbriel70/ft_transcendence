@@ -77,7 +77,7 @@ Snapshot date: 2026-03-16.
 - **User Management:** primarily `gabastos` and `fde-alen`, with support from `gcosta-m`
 - **Cybersecurity (WAF + Vault):** primarily `gcosta-m`, with support from `gabastos` and supporting integration by `fde-alen`
 - **DevOps (ELK + Monitoring):** primarily `fde-alen`
-- **Blockchain:** primarily `gcosta-m`, with integration support from `fde-alen`
+- **Blockchain:** primarily `gcosta-m`
 - **GDPR:** primarily `fde-alen`
 
 ## Final note

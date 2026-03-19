@@ -90,6 +90,7 @@ document to track who does what.
 ## Documentation
 
 - NGINX: [docs/NGINX.md](docs/NGINX.md)
+- Database Schema: [docs/database_schema.md](docs/database_schema.md)
 
 ## III.3 Technical Requirements Compliance
 
@@ -121,6 +122,48 @@ This section explains how the project currently satisfies the mandatory technica
 	- `user_profiles` linked by `auth_user_id` -> `user_auth(id)` with `ON DELETE CASCADE`
 	- `gdpr_delete_requests` linked by `auth_user_id` -> `user_auth(id)` with `ON DELETE CASCADE`
 - Indexes are created for key lookup fields (email, profile linkage, wallet address, GDPR token).
+
+#### Schema overview (core tables)
+
+```sql
+CREATE TABLE user_auth (
+	id SERIAL PRIMARY KEY,
+	email VARCHAR(255) UNIQUE NOT NULL,
+	password_hash VARCHAR(255) NOT NULL,
+	name VARCHAR(255) NOT NULL,
+	totp_secret VARCHAR(255),
+	totp_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE user_profiles (
+	id SERIAL PRIMARY KEY,
+	auth_user_id INTEGER REFERENCES user_auth(id) ON DELETE CASCADE,
+	name VARCHAR(255) NOT NULL,
+	profile_picture TEXT,
+	wallet_address VARCHAR(255) UNIQUE,
+	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE gdpr_delete_requests (
+	id SERIAL PRIMARY KEY,
+	auth_user_id INTEGER REFERENCES user_auth(id) ON DELETE CASCADE,
+	token VARCHAR(255) UNIQUE NOT NULL,
+	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	expires_at TIMESTAMP NOT NULL
+);
+```
+
+#### Why this is a clear, well-defined relational schema
+
+- **Single source of identity**: `user_auth.id` is the canonical user key.
+- **Explicit ownership links**: profile and GDPR rows reference `user_auth(id)` through foreign keys.
+- **Referential cleanup**: `ON DELETE CASCADE` guarantees dependent profile/privacy rows are removed when an auth user is deleted.
+- **Uniqueness constraints**: `email`, `wallet_address`, and GDPR `token` prevent duplicate identity/address/token state.
+- **Indexed access paths**: indexes on email, FK columns, wallet address, and GDPR token support consistent lookups.
+
+For a complete table/relations explanation and evaluator-friendly diagram, see [docs/database_schema.md](docs/database_schema.md).
 
 ### 5) Basic user management system with secure signup/login
 

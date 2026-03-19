@@ -68,3 +68,26 @@ should be:
 • Honest about contributions and challenges.
 A poor or incomplete README can negatively impact your evaluation.
 
+
+
+Each module must include a justification in the README explaining:
+Why they chose this module
+What technical challenges it addresses
+How it adds value to the project
+Why it deserves Major/Minor status
+Confirm it's not a shortcut (must demonstrate technical complexity)
+Check relevance to project context
+Ensure technical skill is demonstrated
+
+
+
+
+Technical Decisions
+
+Can the team explain their technical choices?
+Ask about:
+
+Why they chose their tech stack
+How they structured the application
+Challenges faced and solutions implemented
+Trade-offs made during development

@@ -1,184 +1,106 @@
-You can implement GDPR as **new endpoints in existing services**, or as a **separate microservice**. Given your current microservices layout in docker-compose.yml, a dedicated GDPR service is clean but not required.
+# GDPR Implementation (Current State)
 
-## Recommended approach (fits your current setup)
-Given `init-db.sh`, your DB schema is **single-schema** (`public`) with these tables:
-- `public.users`
-- `public.transactions`
+This document reflects the **actual implementation currently in the repository**.
 
-**Add GDPR endpoints primarily to the user service** (or a lightweight `gdpr_service`):
-- **User service**: identity + profile data + data export
-- **Transition service**: transaction history (or reuse user service DB access)
+## Architecture Decision
 
-Then **aggregate** data for export using a new **GDPR endpoint** in the user service or a lightweight new “gdpr_service”.
+GDPR flows are implemented in the **auth service** and exposed through frontend Privacy Center views.
 
-## What to implement
+- No separate `gdpr_service` is currently used.
+- `auth_service` orchestrates export/deletion.
+- `user_service` provides profile data used during export.
 
-### 1) Data request & export
-Create a GDPR export endpoint that:
-- Fetches data from:
-  - user: `public.users`
-  - transition: `public.transactions`
-- Returns a readable format (JSON + CSV/HTML).
-- Uses existing service endpoints like `/profile/:id`, plus new endpoints in each service.
+## Data Model Used
 
-### 2) Data deletion with confirmation
-- Step 1: user requests deletion → store a pending deletion token (DB or Vault).
-- Step 2: user confirms via token → delete user data in each service.
-- Make deletion cascade using `public.users` and `public.transactions` from `init-db.sh`.
+The GDPR flow relies on these PostgreSQL tables:
 
-### 3) Confirmation emails
-- Add email sending in **auth service** (user identity is already there).
-- Send emails on:
-  - Export requested
-  - Export completed
-  - Deletion requested
-  - Deletion confirmed
-- For now, a stub mailer is fine, but a real SMTP client is required for production.
+- `user_auth`
+- `user_profiles` (linked to `user_auth.id` via `auth_user_id`, `ON DELETE CASCADE`)
+- `gdpr_delete_requests` (linked to `user_auth.id` via `auth_user_id`, `ON DELETE CASCADE`)
 
-## Should it be a different service?
-**Optional.**
-If you want clear separation and auditability, create a dedicated **gdpr_service** that orchestrates:
-- Calls other services’ endpoints.
-- Sends confirmation emails.
-- Logs requests.
+Relevant schema sources:
 
-Otherwise, keep it in **user_service** and have it call other services internally.
+- `scripts/init-db.sh`
+- `app/services/auth/src/db.js`
+- `app/services/user/src/db.js`
 
----
+## Implemented Backend Endpoints
 
-If you want, I can outline the minimal endpoint list and where to place them (with exact file links).
+Implemented in `app/services/auth/src/auth.js`:
 
+### 1) `GET /gdpr/export`
 
+- Requires authenticated JWT (`Authorization: Bearer ...`).
+- Fetches account fields from `user_auth` (excluding password hash and TOTP secret).
+- Calls `user_service` (`/users/me/data`) for profile data.
+- Returns downloadable JSON (`my-minibank-data.json`).
+- Sends notification email (or logs email content if SMTP is not configured).
 
+### 2) `POST /gdpr/delete-request`
 
+- Requires authenticated JWT.
+- Removes previous pending deletion requests for the user.
+- Creates a new `gdpr_delete_requests` record with random token and 24h expiry.
+- Sends confirmation link to email (`#/gdpr-confirm?token=...`).
 
+### 3) `DELETE /gdpr/confirm-delete`
 
-## Implementation Order:
-1. Add GDPR endpoints to user service (export, delete request, confirm deletion).
-2. Build frontend UI for those endpoints.
-3. Add email confirmation pipeline.
-4. Polish frontend.
+- Receives `{ token }` in request body.
+- Validates token existence and expiry.
+- Deletes `user_auth` row for the target user.
+- Cascading FK deletes linked `user_profiles` and `gdpr_delete_requests` rows.
+- Sends deletion confirmation email.
 
+## Implemented Frontend Flow
 
+Implemented in:
 
-1. Add GDPR endpoints
+- `app/frontend/js/views/gdpr.js`
+- `app/frontend/js/views/gdpr-confirm.js`
+- `app/frontend/js/services/api.js`
 
-Here's a minimal GDPR endpoint checklist to add to user.js:
+### Privacy Center (`#/gdpr`)
 
-````javascript
-const express = require('express');
-const { initVault } = require('./vault');
+- **Export button** → calls `GET /api/auth/gdpr/export`, downloads JSON blob.
+- **Delete request button** → calls `POST /api/auth/gdpr/delete-request`.
 
-const app = express();
-const PORT = process.env.SERVICE_PORT || 3002;
+### Confirmation page (`#/gdpr-confirm?token=...`)
 
-app.use(express.json());
+- Extracts token from hash query string.
+- On user confirmation, calls `DELETE /api/auth/gdpr/confirm-delete` with token.
+- Clears session and redirects to login after success.
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    service: 'user',
-    timestamp: new Date().toISOString()
-  });
-});
+## Email Behavior
 
-// Get profile
-app.get('/profile/:id', async (req, res) => {
-  const userId = req.params.id;
-  try {
-    const query = `
-        SELECT name, email, balance
-        FROM public.users
-        WHERE id = $1
-     `;
+Implemented via `nodemailer` in `auth_service`:
 
-    const result = await pool.query(query, [userId]);
+- If `SMTP_HOST` is configured, sends real emails.
+- If not configured, writes email content to auth service logs.
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+Environment variables used:
 
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Error fetching profile:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+- `APP_URL`
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
 
-// GDPR: Request data export
-app.post('/gdpr/export-request/:id', async (req, res) => {
-  const userId = req.params.id;
-  try {
-    // TODO: Create export request record in DB
-    // TODO: Send confirmation email
-    res.json({ message: 'Export request received. Check your email.', requestId: 'uuid' });
-  } catch (error) {
-    console.error('Error requesting export:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+## What Is Covered Today
 
-// GDPR: Get exported user data (all data in readable format)
-app.get('/gdpr/export/:id', async (req, res) => {
-  const userId = req.params.id;
-  try {
-    // TODO: Fetch from all services (profile, transactions, etc.)
-    // TODO: Format as JSON/CSV
-    res.json({
-      profile: {},
-      transactions: [],
-      exportedAt: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Error exporting data:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+- Data export endpoint with downloadable JSON
+- Deletion request with email confirmation token
+- Token expiry handling (24h)
+- Confirmed deletion with cascade cleanup
+- Frontend UX for export and deletion confirmation
 
-// GDPR: Request deletion with confirmation token
-app.post('/gdpr/delete-request/:id', async (req, res) => {
-  const userId = req.params.id;
-  try {
-    // TODO: Generate deletion token, store with TTL (24-48h)
-    // TODO: Send confirmation email with token
-    res.json({ message: 'Deletion request received. Confirm via email link.' });
-  } catch (error) {
-    console.error('Error requesting deletion:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+## Known Gaps / Future Improvements
 
-// GDPR: Confirm deletion with token
-app.post('/gdpr/delete-confirm/:id', async (req, res) => {
-  const { token } = req.body;
-  const userId = req.params.id;
-  try {
-    // TODO: Validate token + TTL
-    // TODO: Delete user data from all services (cascade)
-    // TODO: Send confirmation email
-    res.json({ message: 'User data deleted successfully.' });
-  } catch (error) {
-    console.error('Error confirming deletion:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+1. **Export scope**: current export contains account + profile data; transaction aggregation is not fully integrated in export payload.
+2. **Audit trail**: deletion audit/event logging can be expanded for stronger compliance evidence.
+3. **Retention policy docs**: define explicit retention windows for operational logs and GDPR records.
+4. **Service split** (optional): a dedicated `gdpr_service` could be introduced for stricter separation and auditability.
 
-async function bootstrap()
-{
-  await initVault();
+## Quick Endpoint Summary
 
-  app.listen(PORT, () => {
-    console.log(`✅ User service running on port ${PORT}`);
-  });
-}
+- `GET /api/auth/gdpr/export`
+- `POST /api/auth/gdpr/delete-request`
+- `DELETE /api/auth/gdpr/confirm-delete`
 
-bootstrap();
-````
-
-**Next steps:**
-1. Implement DB schema for `gdpr_requests` table (stores export/delete requests + tokens).
-2. Add email confirmation logic (stub mailer for now).
-3. Implement data aggregation from other services.
-
-Want the DB schema for `gdpr_requests`?
+These are production paths behind NGINX proxy and map to auth service GDPR handlers.
