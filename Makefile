@@ -13,7 +13,7 @@ DC := docker compose
 # ══════════════════════════════════════════════════════════════════════════════
 #  make  ──  gera/atualiza certificados SSL, build e sobe tudo
 # ══════════════════════════════════════════════════════════════════════════════
-all: certs build up
+all: build up
 
 certs:
 	@echo "$(CYAN)$(BOLD)[SSL] Configurando certificados...$(RESET)"
