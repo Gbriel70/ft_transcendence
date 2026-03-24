@@ -24,10 +24,10 @@ https://localhost:8443
 
 
 The video below show the pages of login,register and dashboard:
-![dashboard](media\dashboardgif.gif)
+![dashboard](media/dashboardgif.gif)
 
 Now the video that show how to change the user's personal datas:
-![personaldata](media\personaldatagif.gif)
+![personaldata](media/personaldatagif.gif)
 
 Here our program show the function of 2FA and the GDPR in action, that the user can require their datas that are used by our program and exclude their account with their datas:
 ![2fa-gdpr](media/2fa-gdprgif.gif)
