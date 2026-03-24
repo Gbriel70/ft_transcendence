@@ -1,7 +1,3 @@
-transformar em executavel
-checar se é root?
-- talvez nao incluir script, só rodar nas nossas máquinas e setar rootless docker pra gente.
-
 #!/bin/bash
 set -e
 
@@ -211,3 +207,8 @@ echo "  - Start Docker: systemctl --user start docker"
 echo "  - Stop Docker: systemctl --user stop docker"
 echo "  - Check status: systemctl --user status docker"
 echo "  - View logs: journalctl --user -u docker"
+
+
+# transformar em executavel
+# checar se é root?
+# - talvez nao incluir script, só rodar nas nossas máquinas e setar rootless docker pra gente.
