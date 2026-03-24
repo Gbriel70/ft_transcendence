@@ -114,7 +114,7 @@ The document of database explain why we developed him on this schema, you can se
 
 Our schema used:
 
-` ` `
+```
 CREATE TABLE IF NOT EXISTS user_auth (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -150,7 +150,7 @@ CREATE TABLE IF NOT EXISTS gdpr_delete_requests (
 );
 
 CREATE INDEX IF NOT EXISTS idx_gdpr_token ON gdpr_delete_requests(token);
-` ` `
+```
 
 
 ***Features List***
