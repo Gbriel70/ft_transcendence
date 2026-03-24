@@ -1,1 +1,0 @@
-yes, wire in Prometheus client metrics for each service (HTTP requests, latency histograms) and add a service dashboard and alerts.
