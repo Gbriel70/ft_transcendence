@@ -7,13 +7,15 @@ The name of our project is "42 Bank", but it's not a normal bank, it's a bank wi
 **Instructions**
 As our project works with microservices, we have choosed to use the Docker/Docker Compose to take all images that we needed, so we need to install manually in our host machine the latest stable version of Docker and Docker Compose. Then to run the all program, we have to do:
 
-` ` `
+```
 docker compose build
+```
 
 The docker compose build command builds or rebuilds the images for the services defined in the docker-compose.yml file. It reads the instructions from each service's Dockerfile and prepares the images locally, without starting any containers.
 
-` ` ` 
+``` 
 docker compose up
+```
 
 The docker compose up command builds (if necessary), pulls images, creates containers, sets up networks and volumes, and starts all services defined in the docker-compose.yml file
 
