@@ -216,21 +216,21 @@ Team member(s): `fde-alen`
 
 ## MODULES
 
--Minor: Framework backend (+1)
--Major: A public API to interact with the database with a secured API key, rate
+- Minor: Framework backend (+1)
+- Major: A public API to interact with the database with a secured API key, rate
 limiting, documentation, and at least 5 endpoints. (+2)
--Minor: A complete notification system for all creation, update, and deletion actions. (+1)
--Minor: Support for additional browsers. (+1)
--Major: Standard user management and authentication (+2)
--Minor: Implement a complete 2FA (Two-Factor Authentication) system for the
+- Minor: A complete notification system for all creation, update, and deletion actions. (+1)
+- Minor: Support for additional browsers. (+1)
+- Major: Standard user management and authentication (+2)
+- Minor: Implement a complete 2FA (Two-Factor Authentication) system for the
 users. (+1)
--Major: Implement WAF/ModSecurity (hardened) + HashiCorp Vault for secrets (+2)
--Major: Infrastructure for log management using ELK (Elasticsearch, Logstash,
+- Major: Implement WAF/ModSecurity (hardened) + HashiCorp Vault for secrets (+2)
+- Major: Infrastructure for log management using ELK (Elasticsearch, Logstash,
 Kibana) (+2)
--Major: Monitoring system with Prometheus and Grafana. (+2)
--Major: Backend as microservices. (+2)
--Minor: GDPR compliance features. (+1)
--Major: Store transactions on the Blockchain. (+2)
+- Major: Monitoring system with Prometheus and Grafana. (+2)
+- Major: Backend as microservices. (+2)
+- Minor: GDPR compliance features. (+1)
+- Major: Store transactions on the Blockchain. (+2)
 
 Total of 19 points.
 
@@ -299,6 +299,9 @@ Total of 19 points.
 
 ***Individual Contributions***
 `gcosta-m` led the technical architecture of the project, including microservices design, database structure, cybersecurity hardening decisions, and blockchain integration direction. He also contributed to complex bug fixing, performance-oriented refactors, and code review of critical backend and infrastructure changes.
+
 `gabastos` focused on backend feature delivery across microservices, with direct contributions to user management flows, 2FA implementation, and security-related integrations. He also worked on system notifications, endpoint behavior, bug resolution, and service-to-service API alignment.
+
 `fde-alen` contributed to the DevOps and compliance layers, including monitoring setup, GDPR-related features, and centralized logging analysis. He supported cybersecurity tasks, observability improvements, and troubleshooting efforts to stabilize the platform during integration.
+
 `sdavi-al` was responsible for the full frontend implementation, including page structure, user interaction flows, and UI consistency across the application. He also contributed to user management interfaces, browser compatibility adjustments, and fixes to keep the user experience stable and cohesive.
