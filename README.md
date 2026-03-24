@@ -1,10 +1,10 @@
 *This project has been created as part of the 42 curriculum by gcosta-m, gabastos, fde-alen, sdavi-al.*
 
-**Description**
+### Description
 The name of our project is "42 Bank", but it's not a normal bank, it's a bank with a blockchain. Our goal is store money in a security wallet and transfering the money with anonimity to anyone in anywhere of the World. To do that, we have constructed a website with microservices, building a robust system of security and a clear/useful site for the users. The users can create account, change their personal datas, exclude their accounts, activate 2FA and the main goal: keep money and transfering with security/anonimity.
 
 
-**Instructions**
+### Instructions
 As our project works with microservices, we have choosed to use the Docker/Docker Compose to take all images that we needed, so we need to install manually in our host machine the latest stable version of Docker and Docker Compose. Then to run the all program, we have to do:
 
 ```
@@ -33,7 +33,7 @@ Here our program show the function of 2FA and the GDPR in action, that the user 
 ![2fa-gdpr](media/2fa-gdprgif.gif)
 
 
-**Resources**
+### Resources
 Throughout the project, we used AI assistance in our development process. It helped us understand what was needed to achieve our goals, troubleshoot errors, and get suggestions to improve code quality. We used the IA to help us to build the blockchain, the monitoring part and the frontend (pages).
 
 The project includes documentation for the main features and technologies used. Most documents follow a clear "why/how" format to make technical decisions and implementation easier to understand.
@@ -78,7 +78,7 @@ The project includes documentation for the main features and technologies used. 
 [user-management](docs/USER_MANAGEMENT.md)
 
 
-***Team Information***
+### Team Information
 <gcosta-m> Gabriel Costa - Tech Lead: Defined the goal of our project and what stacks/technologies we have used, also defined the architecture of the program and review all code, refactoring what it was needed.
 
 <gabastos> Gabriel Sobral - Product Owner: He defined the product vision, prioritized features based on project goals and user needs, and coordinated communication throughout the project lifecycle. He maintained alignment across the team, validated deliverables, and supported quality assurance by testing key features developed by other team members.
@@ -88,11 +88,11 @@ The project includes documentation for the main features and technologies used. 
 <sdavi-al> Steffano Davi - Developer: He developed the features asked for the other team members, also tested the features and communicate the team what was function.
 
 
-***Project Management***
+### Project Management
 The team’s tasks were organized to match each member’s skills and interests across the project modules. Meetings and discussions were held both in person at the 42 São Paulo campus and remotely through WhatsApp. For team management, in addition to WhatsApp, we also used Notion to plan the project and track tasks that were pending or completed. The entire project was initially built and version-controlled on GitHub.
 
 
-***Technical Stack***
+### Technical Stack
 
 - Frontend technologies and frameworks: The frontend is an SPA built with Vanilla JavaScript (ES modules), HTML, and custom CSS.
 [frontend](docs/FRONTEND.md)
@@ -108,7 +108,7 @@ The team’s tasks were organized to match each member’s skills and interests 
 - Justification for major technical choices: We prioritized modularity, security, and observability. Microservices improve separation of concerns, Docker ensures reproducible environments, PostgreSQL enforces data integrity, and dedicated monitoring/logging/security components improve reliability and operational control.
 
 
-***Database Schema***
+### Database Schema
 The document of database explain why we developed him on this schema, you can see more here:
 [database](docs/DATABASE.md)
 
@@ -153,7 +153,7 @@ CREATE INDEX IF NOT EXISTS idx_gdpr_token ON gdpr_delete_requests(token);
 ```
 
 
-***Features List***
+### Features List
 
 - **Frontend**
 Brief summary: SPA interface with navigation, authentication flows, dashboard, profile, and GDPR pages.
@@ -208,7 +208,7 @@ Brief summary: Data export and account deletion request/confirmation lifecycle.
 Team member(s): `fde-alen`
 
 
-***Modules***
+### Modules
 -Minor: Framework backend (+1)
 -Major: A public API to interact with the database with a secured API key, rate
 limiting, documentation, and at least 5 endpoints. (+2)
