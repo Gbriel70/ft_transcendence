@@ -1,4 +1,4 @@
-import api from '../services/api.js?v=8';
+import api from '../services/api.js?v=9';
 
 const capitalizeWord = (word) => {
     if (!word) return '';
@@ -6,7 +6,7 @@ const capitalizeWord = (word) => {
 };
 
 const getDashboardDisplayName = (fullName) => {
-    const safeName = (fullName || '').trim();
+    const safeName = String(fullName || '').trim();
     if (!safeName) return 'User';
 
     let displayName = '';
@@ -226,24 +226,25 @@ const DashboardView = {
         `;
     },
     afterRender: async () => {
-        const user = api.getCurrentUser();
-        if (!user) return;
+        try {
+            const user = api.getCurrentUser();
+            if (!user) return;
 
-        const profileBtn = document.getElementById('profile-btn');
-        if (profileBtn) {
-            profileBtn.addEventListener('click', () => {
-                window.location.hash = '/profile';
-            });
-        }
+            const profileBtn = document.getElementById('profile-btn');
+            if (profileBtn) {
+                profileBtn.addEventListener('click', () => {
+                    window.location.hash = '/profile';
+                });
+            }
 
-        const logoutBtn = document.getElementById('logout-btn');
-        if (logoutBtn) {
-            logoutBtn.addEventListener('click', () => {
-                api.logout();
-            });
-        }
+            const logoutBtn = document.getElementById('logout-btn');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', () => {
+                    api.logout();
+                });
+            }
 
-        const renderWallet = async () => {
+            const renderWallet = async () => {
             const walletContent = document.getElementById('wallet-content');
             if (!walletContent) return;
 
@@ -325,96 +326,111 @@ const DashboardView = {
             }
         };
 
-        await renderWallet();
+            await renderWallet();
 
-        const loadData = async () => {
+            const loadData = async () => {
             try {
-                // Check for mock data first
-                const mockDataStr = localStorage.getItem('mockData');
-                let mockData = null;
-
-                if (mockDataStr) {
-                    try {
-                        mockData = JSON.parse(mockDataStr);
-                        console.log('Using mock data:', mockData);
-                    } catch (e) {
-                        console.error('Failed to parse mock data:', e);
-                    }
-                }
-
-                // Load balance
                 const balanceEl = document.getElementById('balance-amount');
-                if (mockData && mockData.balance !== undefined) {
-                    balanceEl.textContent = parseFloat(mockData.balance).toFixed(2);
-                } else {
-                    balanceEl.textContent = "0.00";
+                const txList = document.getElementById('transactions-list');
+                const incomeEl = document.getElementById('income-amount');
+                const expenseEl = document.getElementById('expense-amount');
+
+                const profile = await api.getProfile().catch(() => null);
+                const walletAddress = profile?.wallet_address || null;
+
+                if (!walletAddress) {
+                    balanceEl.textContent = '0.00';
+                    incomeEl.textContent = '+R$ 0.00';
+                    expenseEl.textContent = '-R$ 0.00';
+                    txList.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Wallet not found for this user.</td></tr>';
+                    return;
                 }
 
-                // Load transactions
-                let txData = null;
-                if (mockData && mockData.transactions) {
-                    txData = { data: mockData.transactions };
-                } else {
-                    txData = await api.getTransactions().catch(err => {
+                const [balanceData, txData] = await Promise.all([
+                    api.getWalletBalance(walletAddress).catch(err => {
+                        console.error('Failed to load wallet balance:', err);
+                        return { balance: '0' };
+                    }),
+                    api.getTransactions(walletAddress).catch(err => {
                         console.error('Failed to load transactions:', err);
                         return { data: [] };
-                    });
-                }
+                    })
+                ]);
 
-                const txList = document.getElementById('transactions-list');
-                if (txData && Array.isArray(txData.data)) {
-                    if (txData.data.length === 0) {
-                        txList.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No recent transactions.</td></tr>';
-                    } else {
-                        // Calculate income and expenses
-                        let totalIncome = mockData && mockData.income !== undefined ? mockData.income : 0;
-                        let totalExpense = mockData && mockData.expenses !== undefined ? mockData.expenses : 0;
+                const currentBalance = parseFloat(balanceData?.balance) || 0;
+                balanceEl.textContent = currentBalance.toFixed(2);
 
-                        // If not using mock income/expenses, calculate from transactions
-                        if (!mockData || mockData.income === undefined) {
-                            totalIncome = 0;
-                            totalExpense = 0;
-                            txData.data.forEach(tx => {
-                                const amount = parseFloat(tx.amount) || 0;
-                                if (amount > 0) {
-                                    totalIncome += amount;
-                                } else {
-                                    totalExpense += Math.abs(amount);
-                                }
-                            });
+                const transactions = Array.isArray(txData?.data) ? txData.data : [];
+
+                if (transactions.length === 0) {
+                    incomeEl.textContent = '+R$ 0.00';
+                    expenseEl.textContent = '-R$ 0.00';
+                    txList.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No recent transactions.</td></tr>';
+                } else {
+                    let totalIncome = 0;
+                    let totalExpense = 0;
+
+                    const walletLower = walletAddress.toLowerCase();
+                    const normalized = transactions.map(tx => {
+                        const amount = Math.abs(parseFloat(tx.amount) || 0);
+                        const direction = (tx.direction || '').toLowerCase();
+                        const from = (tx.from || '').toLowerCase();
+                        const to = (tx.to || '').toLowerCase();
+
+                        let isIncome;
+                        if (direction === 'in') {
+                            isIncome = true;
+                        } else if (direction === 'out') {
+                            isIncome = false;
+                        } else {
+                            isIncome = to === walletLower && from !== walletLower;
                         }
 
-                        // Update income/expense display
-                        document.getElementById('income-amount').textContent = `+R$ ${totalIncome.toFixed(2)}`;
-                        document.getElementById('expense-amount').textContent = `-R$ ${totalExpense.toFixed(2)}`;
+                        if (isIncome) {
+                            totalIncome += amount;
+                        } else {
+                            totalExpense += amount;
+                        }
 
-                        txList.innerHTML = txData.data.map(tx => {
-                            const amount = parseFloat(tx.amount) || 0;
-                            const isIncome = amount > 0;
-                            const amountClass = isIncome ? 'amount-income' : 'amount-expense';
-                            const iconClass = isIncome ? 'income' : 'expense';
-                            const status = tx.status || 'completed';
+                        return {
+                            ...tx,
+                            amount,
+                            isIncome,
+                            counterparty: tx.counterparty || (isIncome ? tx.from : tx.to)
+                        };
+                    });
 
-                            const statusIcon = status === 'completed'
-                                ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>'
-                                : status === 'pending'
-                                ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>'
-                                : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
+                    incomeEl.textContent = `+R$ ${totalIncome.toFixed(2)}`;
+                    expenseEl.textContent = `-R$ ${totalExpense.toFixed(2)}`;
 
-                            const iconSvg = isIncome
-                                ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="7 17 17 7"></polyline><polyline points="17 17 17 7 7 7"></polyline></svg>'
-                                : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 7 7 17"></polyline><polyline points="7 7 7 17 17 17"></polyline></svg>';
+                    txList.innerHTML = normalized.map(tx => {
+                        const amountClass = tx.isIncome ? 'amount-income' : 'amount-expense';
+                        const iconClass = tx.isIncome ? 'income' : 'expense';
+                        const status = tx.status || 'completed';
 
-                            return `
+                        const statusIcon = status === 'completed'
+                            ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>'
+                            : status === 'pending'
+                            ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>'
+                            : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
+
+                        const iconSvg = tx.isIncome
+                            ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="7 17 17 7"></polyline><polyline points="17 17 17 7 7 7"></polyline></svg>'
+                            : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 7 7 17"></polyline><polyline points="7 7 7 17 17 17"></polyline></svg>';
+
+                        const createdAtValue = tx.created_at
+                            || (tx.timestamp ? new Date(Number(tx.timestamp) * 1000).toISOString() : new Date().toISOString());
+
+                        return `
                                 <tr>
-                                    <td>${new Date(tx.created_at || Date.now()).toLocaleDateString('en-CA')}</td>
+                                    <td>${new Date(createdAtValue).toLocaleDateString('en-CA')}</td>
                                     <td>
                                         <div class="transaction-desc">
                                             <span class="transaction-icon ${iconClass}">${iconSvg}</span>
-                                            <span>${tx.recipient_email ? (isIncome ? 'From: ' : 'To: ') + tx.recipient_email : 'Transfer'}</span>
+                                            <span>${tx.isIncome ? 'From: ' : 'To: '}${tx.counterparty || 'Unknown wallet'}</span>
                                         </div>
                                     </td>
-                                    <td class="${amountClass}">${isIncome ? '+' : '-'}R$ ${Math.abs(amount).toFixed(2)}</td>
+                                    <td class="${amountClass}">${tx.isIncome ? '+' : '-'}R$ ${tx.amount.toFixed(2)}</td>
                                     <td>
                                         <span class="status-badge ${status}">
                                             ${statusIcon}
@@ -423,10 +439,7 @@ const DashboardView = {
                                     </td>
                                 </tr>
                             `;
-                        }).join('');
-                    }
-                } else {
-                    txList.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Unable to load transactions.</td></tr>';
+                    }).join('');
                 }
 
             } catch (err) {
@@ -434,29 +447,38 @@ const DashboardView = {
             }
         };
 
-        await loadData();
+            await loadData();
 
-        const form = document.getElementById('transfer-form');
-        if (form) {
-            form.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const recipient = document.getElementById('recipient').value;
-                const amount = document.getElementById('amount').value;
+            const form = document.getElementById('transfer-form');
+            if (form) {
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const recipientInput = document.getElementById('recipient');
+                    const amountInput = document.getElementById('amount');
+                    const recipient = recipientInput ? recipientInput.value : '';
+                    const amount = amountInput ? amountInput.value : '';
 
-                try {
-                    const result = await api.transfer(recipient, amount);
-                    if (result && (result.success || result.id)) {
-                        window.showNotification('Transfer successful!', 'success');
-                        form.reset();
-                        await loadData();
-                    } else {
-                        throw new Error(result.error || 'Unknown error');
+                    try {
+                        const result = await api.transfer(recipient, amount);
+                        if (result && (result.success || result.id)) {
+                            if (typeof window.showNotification === 'function') {
+                                window.showNotification('Transfer successful!', 'success');
+                            }
+                            form.reset();
+                            await loadData();
+                        } else {
+                            throw new Error(result.error || 'Unknown error');
+                        }
+                    } catch (error) {
+                        console.error('Transfer failed', error);
+                        if (typeof window.showNotification === 'function') {
+                            window.showNotification(`Transfer failed: ${error.message}`, 'error');
+                        }
                     }
-                } catch (error) {
-                    console.error('Transfer failed', error);
-                    window.showNotification(`Transfer failed: ${error.message}`, 'error');
-                }
-            });
+                });
+            }
+        } catch (error) {
+            console.error('Dashboard afterRender failed:', error);
         }
     }
 };

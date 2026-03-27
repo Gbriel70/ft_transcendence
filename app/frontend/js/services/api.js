@@ -124,15 +124,26 @@ const api = {
         return handleResponse(response);
     },
 
-    getTransactions: async () => {
-        const response = await fetch(`${API_BASE}/tx/transactions`, {
+    getTransactions: async (walletAddress = null) => {
+        let resolvedWalletAddress = walletAddress;
+
+        if (!resolvedWalletAddress) {
+            const profile = await api.getProfile().catch(() => null);
+            resolvedWalletAddress = profile?.wallet_address || null;
+        }
+
+        if (!resolvedWalletAddress) {
+            return { data: [] };
+        }
+
+        const response = await fetch(`${API_BASE}/blockchain/wallets/${resolvedWalletAddress}/transactions`, {
             headers: getHeaders()
         });
+
         const data = await handleResponse(response);
-        // Normalizar para sempre retornar { data: [] }
-        // transaction_service pode retornar { transactions: [] } ou { data: [] } ou []
-        if (Array.isArray(data))              return { data };
-        if (Array.isArray(data.data))         return data;
+
+        if (Array.isArray(data)) return { data };
+        if (Array.isArray(data.data)) return data;
         if (Array.isArray(data.transactions)) return { data: data.transactions };
         return { data: [] };
     },

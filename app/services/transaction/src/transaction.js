@@ -96,8 +96,17 @@ app.get('/transactions', authenticate, async (req, res) => {
         }
 
         // Buscar histórico de transações via blockchain
+        const txHistory = await callBlockchain(
+            'GET',
+            `/wallets/${walletData.wallet_address}/transactions`
+        );
+
+        const transactions = Array.isArray(txHistory?.transactions)
+            ? txHistory.transactions
+            : [];
+
         transactionTotal.inc({ type: 'get' });
-        return res.json({ transactions: [] });
+        return res.json({ transactions });
 
     } catch (err) {
         transactionErrorsTotal.inc({ type: 'get' });
