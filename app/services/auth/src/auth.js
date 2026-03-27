@@ -241,7 +241,10 @@ app.post('/login', async (req, res) =>
         if (result.rows.length === 0)
         {
             authLoginTotal.inc({ result: 'failure', reason: 'user_not_found' });
-            return res.status(401).json({ error: 'Invalid credentials' });
+            return res.status(404).json({
+                error: 'Account does not exist',
+                code: 'ACCOUNT_NOT_FOUND'
+            });
         }
 
         const user = result.rows[0];
@@ -250,7 +253,10 @@ app.post('/login', async (req, res) =>
         if (!validPassword)
         {
             authLoginTotal.inc({ result: 'failure', reason: 'invalid_password' });
-            return res.status(401).json({ error: 'Invalid credentials' });
+            return res.status(401).json({
+                error: 'Incorrect password',
+                code: 'INVALID_PASSWORD'
+            });
         }
 
         // Se 2FA está ativo, retorna temp token
