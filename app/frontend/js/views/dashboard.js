@@ -301,24 +301,8 @@ const DashboardView = {
                                     "
                                     title="Copy address">📋</button>
                             </div>
-                            <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                <span style="color: var(--text-secondary); font-size: 0.85rem;">Balance:</span>
-                                <span id="eth-balance" style="font-weight: 600; color: var(--primary);">Loading...</span>
-                            </div>
                         </div>
                     `;
-
-                    // Buscar saldo ETH
-                    try {
-                        const balanceData = await api.getWalletBalance(profile.wallet_address);
-                        const ethBalance = document.getElementById('eth-balance');
-                        if (ethBalance) {
-                            ethBalance.textContent = `${parseFloat(balanceData.balance).toFixed(4)} ETH`;
-                        }
-                    } catch (e) {
-                        const ethBalance = document.getElementById('eth-balance');
-                        if (ethBalance) ethBalance.textContent = 'Error loading balance';
-                    }
                 }
 
             } catch (error) {

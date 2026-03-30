@@ -197,7 +197,7 @@ services:
       - "8080:80"
       - "8443:443"
     volumes:
-      - ./certs:/etc/nginx/certs:ro
+      - ./certs:/etc/nginx/certs
     depends_on:
       - auth_service
       - user_service
