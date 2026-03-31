@@ -46,11 +46,11 @@ re: down-hard build up
 clean: down-hard
 
 # ── Internos ──────────────────────────────────────────────────────────────────
-down:
+down-hard:
 	@echo "$(CYAN)$(BOLD)[Docker] Parando serviços...$(RESET)"
 	$(DC) down
 
-down-hard:
+down:
 	@echo "$(CYAN)$(BOLD)[Docker] Removendo containers e volumes...$(RESET)"
 	$(DC) down -v --remove-orphans
 	docker volume prune -f
