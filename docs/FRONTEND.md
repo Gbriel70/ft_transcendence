@@ -8,7 +8,7 @@ Main reasons:
 - simplicity in development and maintenance
 - native execution in the browser
 - native support for ES modules
-- lower complexity for an SPA flow with multiple screens
+- lower complexity for an Single Page Application (SPA) flow with multiple screens
 - easy integration with authentication, 2FA, GDPR, and API calls
 
 In short, JavaScript was chosen to deliver fast implementation with solid architectural control.

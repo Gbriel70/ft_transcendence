@@ -32,7 +32,7 @@ High-level model:
 ## Login flow with 2FA enabled
 
 - Password is validated first.
-- If 2FA is enabled, backend returns requires2FA plus a temporary token.
+- If 2FA is enabled, backend returns requires 2FA plus a temporary token.
 - Temporary token is limited to 5 minutes and flagged as pending second factor.
 - Frontend sends temp token and TOTP code to complete authentication.
 - Backend returns the normal session token only after TOTP verification succeeds.

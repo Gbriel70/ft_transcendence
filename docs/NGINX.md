@@ -7,7 +7,7 @@ In MiniBank, NGINX is the single entry point for the application. It was chosen 
 - centralize external access in one place
 - terminate TLS (HTTPS) and protect traffic
 - route requests to the correct microservices
-- apply security controls (headers, rate limiting, and WAF)
+- apply security controls (headers, rate limiting, and WAF - Web Application Firewall)
 - serve the static frontend with good performance
 
 Without it, each service would need to be exposed separately, increasing complexity and risk.
@@ -34,6 +34,8 @@ Short flow:
 - `/api/tx/*` -> `transaction_service:3003`
 - `/api/blockchain/*` -> `blockchain_service:3004`
 - `/kibana/` -> `kibana:5601`
+- `/grafana/` -> `grafana:3000`
+- `/prometheus/` -> `prometheus:9090`
 
 ## Applied security layers
 

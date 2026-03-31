@@ -108,6 +108,7 @@ const TermsView = {
                         <div class="terms-article">
                             <h3>8. Privacy and Data Rights</h3>
                             <p>Your use of MiniBank is also governed by the Privacy Policy below. MiniBank includes a Privacy Center where authenticated users can export their data and request deletion of their account.</p>
+                            <p>Some transfer and wallet-related events may also be recorded on blockchain infrastructure. Blockchain records can be immutable by design and may not be technically alterable or erasable, which can limit how rights such as rectification or erasure are applied to on-chain data under GDPR.</p>
                         </div>
 
                         <div class="terms-article">
@@ -179,6 +180,7 @@ const TermsView = {
                             <h3>7. Data Retention</h3>
                             <p>We retain account, profile, wallet, and transaction data for as long as the account remains active and the data is needed to operate the service. Privacy-request records, logs, and monitoring data may be retained for limited operational, debugging, or security purposes.</p>
                             <p>If you request account deletion and confirm it through the email confirmation flow, the application is designed to permanently remove the user account and associated personal data linked to it, subject to technical and legal constraints.</p>
+                            <p>Where transaction or wallet references are written to a blockchain, those records may be permanent and cannot always be modified or deleted. In those cases, GDPR rights are implemented for off-chain personal data under our control, while on-chain immutability may limit full erasure or correction.</p>
                         </div>
 
                         <div class="terms-article">
