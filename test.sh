@@ -1,197 +1,248 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
+export LC_ALL=C
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+BASE_URL="${BASE_URL:-https://localhost:8443}"
+USERS="${USERS:-10}"
+TX_COUNT="${TX_COUNT:-200}"
+CONCURRENCY="${CONCURRENCY:-5}"   # menor por causa do rate-limit do nginx
+PASSWORD="${PASSWORD:-123456}"
+PREFIX="${PREFIX:-loadtest}"
+AMOUNT="${AMOUNT:-1}"
 
-PASS=0
-FAIL=0
-
-print_header() { echo -e "\n${BLUE}==============================${NC}"; echo -e "${BLUE}  $1${NC}"; echo -e "${BLUE}==============================${NC}"; }
-pass() { echo -e "${GREEN}  ✅ $1${NC}"; PASS=$((PASS + 1)); }
-fail() { echo -e "${RED}  ❌ $1${NC}"; FAIL=$((FAIL + 1)); }
-info() { echo -e "${YELLOW}  ℹ  $1${NC}"; }
-
-# ==================== 1. CONTAINERS ====================
-print_header "1. Checking Containers"
-
-for container in vault postgres hardhat blockchain_service; do
-    STATUS=$(docker inspect --format='{{.State.Status}}' $container 2>/dev/null)
-    HEALTH=$(docker inspect --format='{{.State.Health.Status}}' $container 2>/dev/null)
-
-    if [ "$STATUS" = "running" ]; then
-        if [ "$HEALTH" = "healthy" ] || [ "$HEALTH" = "" ]; then
-            pass "$container is running"
-        else
-            fail "$container is running but health=$HEALTH"
-        fi
-    else
-        fail "$container is NOT running (status=$STATUS)"
-    fi
+for cmd in curl jq shuf mktemp; do
+  command -v "$cmd" >/dev/null 2>&1 || { echo "Erro: '$cmd' não encontrado"; exit 1; }
 done
 
-# ==================== 2. HARDHAT NODE ====================
-print_header "2. Checking Hardhat Node"
+TMP_DIR="$(mktemp -d)"
+USERS_FILE="$TMP_DIR/users.txt"     # email|token|user_id
+RESULTS_FILE="$TMP_DIR/results.txt"
+trap 'rm -rf "$TMP_DIR"' EXIT
 
-# Check RPC
-RESPONSE=$(curl -sf -X POST http://localhost:8545 \
-    -H "Content-Type: application/json" \
-    -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' 2>/dev/null)
+request_post() {
+  local endpoint="$1"
+  local payload="$2"
+  local token="${3:-}"
+  local body_file code
+  body_file="$(mktemp)"
 
-if echo "$RESPONSE" | grep -q "result"; then
-    BLOCK=$(echo "$RESPONSE" | grep -o '"result":"[^"]*"' | cut -d'"' -f4)
-    pass "Hardhat RPC responding (block: $BLOCK)"
-else
-    fail "Hardhat RPC not responding"
-fi
+  if [[ -n "$token" ]]; then
+    code="$(curl -k -sS -o "$body_file" -w "%{http_code}" \
+      -X POST "${BASE_URL}${endpoint}" \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer ${token}" \
+      -d "$payload" || echo "000")"
+  else
+    code="$(curl -k -sS -o "$body_file" -w "%{http_code}" \
+      -X POST "${BASE_URL}${endpoint}" \
+      -H "Content-Type: application/json" \
+      -d "$payload" || echo "000")"
+  fi
 
-# Check chain ID
-CHAIN=$(curl -sf -X POST http://localhost:8545 \
-    -H "Content-Type: application/json" \
-    -d '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' 2>/dev/null \
-    | grep -o '"result":"[^"]*"' | cut -d'"' -f4)
+  printf '%s\n' "$code"
+  cat "$body_file"
+  rm -f "$body_file"
+}
 
-if [ "$CHAIN" = "0x539" ]; then
-    pass "Chain ID is 1337 (0x539)"
-else
-    fail "Wrong chain ID: $CHAIN (expected 0x539)"
-fi
+request_get() {
+  local endpoint="$1"
+  local token="${2:-}"
+  local body_file code
+  body_file="$(mktemp)"
 
-# Check accounts
-ACCOUNTS=$(curl -sf -X POST http://localhost:8545 \
-    -H "Content-Type: application/json" \
-    -d '{"jsonrpc":"2.0","method":"eth_accounts","params":[],"id":1}' 2>/dev/null)
+  if [[ -n "$token" ]]; then
+    code="$(curl -k -sS -o "$body_file" -w "%{http_code}" \
+      -X GET "${BASE_URL}${endpoint}" \
+      -H "Authorization: Bearer ${token}" || echo "000")"
+  else
+    code="$(curl -k -sS -o "$body_file" -w "%{http_code}" \
+      -X GET "${BASE_URL}${endpoint}" || echo "000")"
+  fi
 
-ACCOUNT_COUNT=$(echo "$ACCOUNTS" | grep -o "0x[a-fA-F0-9]*" | wc -l)
-if [ "$ACCOUNT_COUNT" -ge 20 ]; then
-    pass "Hardhat accounts loaded ($ACCOUNT_COUNT accounts)"
-else
-    fail "Expected 20 accounts, got $ACCOUNT_COUNT"
-fi
+  printf '%s\n' "$code"
+  cat "$body_file"
+  rm -f "$body_file"
+}
 
-# ==================== 3. CONTRACT DEPLOYED ====================
-print_header "3. Checking Contract Deployment"
+with_retry_post() {
+  local endpoint="$1" payload="$2" token="${3:-}"
+  local tries=6 wait_ms=200 code body
 
-# Check deployment.json inside container
-DEPLOYMENT=$(docker exec hardhat cat /app/deployment.json 2>/dev/null)
+  for _ in $(seq 1 "$tries"); do
+    { read -r code; body="$(cat)"; } < <(request_post "$endpoint" "$payload" "$token")
 
-if [ ! -z "$DEPLOYMENT" ]; then
-    CONTRACT_ADDR=$(echo "$DEPLOYMENT" | grep -o '"contractAddress": "[^"]*"' | cut -d'"' -f4)
-    pass "deployment.json exists"
-    info "Contract address: $CONTRACT_ADDR"
+    if [[ "$code" =~ ^2 ]]; then
+      printf '%s\n%s' "$code" "$body"
+      return 0
+    fi
 
-    # Check contract has code on chain
-    CODE=$(curl -sf -X POST http://localhost:8545 \
+    if [[ "$code" == "429" || "$code" =~ ^5 || "$code" == "000" ]]; then
+      sleep "$(printf '%d.%03d' $((wait_ms/1000)) $((wait_ms%1000)))"
+      wait_ms=$(( wait_ms * 18 / 10 ))
+      (( wait_ms > 5000 )) && wait_ms=5000
+      continue
+    fi
+
+    printf '%s\n%s' "$code" "$body"
+    return 0
+  done
+
+  printf '%s\n%s' "$code" "$body"
+}
+
+with_retry_tx() {
+  local token="$1" to_user_id="$2" amount="$3"
+  local tries=6 wait_ms=200 code body_file err payload
+
+  payload="{\"to_user_id\":${to_user_id},\"amount\":${amount}}"
+
+  for _ in $(seq 1 "$tries"); do
+    body_file="$(mktemp)"
+    code="$(
+      curl -k -sS -o "$body_file" -w "%{http_code}" \
+        -X POST "${BASE_URL}/api/tx/transactions" \
         -H "Content-Type: application/json" \
-        -d "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getCode\",\"params\":[\"$CONTRACT_ADDR\",\"latest\"],\"id\":1}" 2>/dev/null \
-        | grep -o '"result":"[^"]*"' | cut -d'"' -f4)
+        -H "Authorization: Bearer ${token}" \
+        -d "$payload" || echo "000"
+    )"
 
-    if [ "$CODE" != "0x" ] && [ ! -z "$CODE" ]; then
-        pass "Contract code exists on chain"
-    else
-        fail "No contract code at $CONTRACT_ADDR"
-    fi
-else
-    fail "deployment.json not found in hardhat container"
-fi
-
-# Check artifacts
-ARTIFACT=$(docker exec hardhat test -f /app/artifacts/contracts/MiniBank.sol/MiniBank.json 2>/dev/null && echo "ok")
-if [ "$ARTIFACT" = "ok" ]; then
-    pass "MiniBank.json artifact exists"
-else
-    fail "MiniBank.json artifact NOT found"
-fi
-
-# ==================== 4. VAULT ====================
-print_header "4. Checking Vault"
-
-# Check Vault health
-VAULT_HEALTH=$(curl -sf http://localhost:8200/v1/sys/health 2>/dev/null)
-if echo "$VAULT_HEALTH" | grep -q "initialized"; then
-    pass "Vault is healthy"
-else
-    fail "Vault not responding"
-fi
-
-# Check contract_address in Vault
-CONTRACT_IN_VAULT=$(docker exec vault vault kv get -field=contract_address secret/blockchain 2>/dev/null)
-if [ ! -z "$CONTRACT_IN_VAULT" ]; then
-    pass "contract_address found in Vault"
-    info "Vault contract address: $CONTRACT_IN_VAULT"
-
-    # Compare with deployment.json
-    if [ "$CONTRACT_IN_VAULT" = "$CONTRACT_ADDR" ]; then
-        pass "Vault address matches deployment.json"
-    else
-        fail "Vault address MISMATCH! Vault=$CONTRACT_IN_VAULT Deploy=$CONTRACT_ADDR"
-    fi
-else
-    fail "contract_address NOT found in Vault"
-fi
-
-
-# ==================== 5. FUNCTIONAL TEST ====================
-print_header "5. Functional Test (Create Wallet)"
-
-# Create wallet for test user
-info "Creating wallet for test user (id=9999)..."
-CREATE_RES=$(curl -sf -X POST http://localhost:3004/wallets \
-    -H "Content-Type: application/json" \
-    -d '{"user_id": 9999}' 2>/dev/null)
-
-if echo "$CREATE_RES" | grep -q "wallet_address"; then
-    WALLET=$(echo "$CREATE_RES" | grep -o '"wallet_address":"[^"]*"' | cut -d'"' -f4)
-    TX=$(echo "$CREATE_RES" | grep -o '"tx_hash":"[^"]*"' | cut -d'"' -f4)
-    pass "Wallet created successfully"
-    info "Wallet address : $WALLET"
-    info "TX hash        : $TX"
-
-    # Get wallet back
-    GET_RES=$(curl -sf http://localhost:3004/wallets/9999 2>/dev/null)
-    if echo "$GET_RES" | grep -q "$WALLET"; then
-        pass "GET /wallets/9999 returns correct address"
-    else
-        fail "GET /wallets/9999 returned wrong data: $GET_RES"
+    if [[ "$code" =~ ^2 ]]; then
+      cat "$body_file"
+      rm -f "$body_file"
+      return 0
     fi
 
-    # Check balance
-    BAL_RES=$(curl -sf "http://localhost:3004/balances/$WALLET" 2>/dev/null)
-    if echo "$BAL_RES" | grep -q "balance"; then
-        BALANCE=$(echo "$BAL_RES" | grep -o '"balance":"[^"]*"' | cut -d'"' -f4)
-        pass "GET /balances returns balance: $BALANCE ETH"
-    else
-        fail "GET /balances failed: $BAL_RES"
+    if [[ "$code" == "429" || "$code" =~ ^5 || "$code" == "000" ]]; then
+      rm -f "$body_file"
+      sleep "$(printf '%d.%03d' $((wait_ms/1000)) $((wait_ms%1000)))"
+      wait_ms=$(( wait_ms * 18 / 10 ))
+      (( wait_ms > 5000 )) && wait_ms=5000
+      continue
     fi
-else
-    fail "Failed to create wallet: $CREATE_RES"
+
+    err="$(tr -d '\n' < "$body_file" 2>/dev/null || true)"
+    rm -f "$body_file"
+    echo "FAIL|${code}|${err}"
+    return 1
+  done
+
+  echo "FAIL|${code}|retry_exceeded"
+  return 1
+}
+
+echo "===> Criando ${USERS} usuários..."
+TS="$(date +%s)"
+
+for i in $(seq 1 "$USERS"); do
+  email="${PREFIX}_${TS}_${i}@test.local"
+  name="${PREFIX}_${i}"
+
+  # register
+  reg_code=""
+  reg_body=""
+  { read -r reg_code; reg_body="$(cat)"; } < <(
+    with_retry_post "/api/auth/register" \
+    "{\"name\":\"${name}\",\"email\":\"${email}\",\"password\":\"${PASSWORD}\"}"
+  )
+
+  # segue apenas se criou (2xx) ou já existia (409)
+  if [[ ! "$reg_code" =~ ^2 ]] && [[ "$reg_code" != "409" ]]; then
+    echo "Falha no register: $email (HTTP $reg_code)"
+    continue
+  fi
+
+  # login
+  code=""
+  body=""
+  { read -r code; body="$(cat)"; } < <(
+    with_retry_post "/api/auth/login" \
+    "{\"email\":\"${email}\",\"password\":\"${PASSWORD}\"}"
+  )
+
+  if [[ ! "$code" =~ ^2 ]] || ! jq -e . >/dev/null 2>&1 <<<"$body"; then
+    echo "Falha no login: $email (HTTP $code)"
+    continue
+  fi
+
+  token="$(jq -r '.token // empty' <<<"$body")"
+  if [[ -z "$token" ]]; then
+    echo "Falha no login: $email (sem token)"
+    continue
+  fi
+
+  # cria wallet (ignora se já existir)
+  with_retry_post "/api/users/me/wallet" "{}" "$token" >/dev/null || true
+
+  # pega user_id
+  me_code=""
+  me_body=""
+  { read -r me_code; me_body="$(cat)"; } < <(request_get "/api/users/me" "$token")
+  if [[ ! "$me_code" =~ ^2 ]] || ! jq -e . >/dev/null 2>&1 <<<"$me_body"; then
+    echo "Falha /users/me: $email (HTTP $me_code)"
+    continue
+  fi
+
+  user_id="$(jq -r '.id // .user.id // empty' <<<"$me_body")"
+  if [[ -z "$user_id" ]]; then
+    echo "Falha ao extrair user_id: $email"
+    continue
+  fi
+
+  echo "${email}|${token}|${user_id}" >> "$USERS_FILE"
+  sleep 0.05
+done
+
+created_users="$(wc -l < "$USERS_FILE" | tr -d ' ')"
+if (( created_users < 2 )); then
+  echo "Erro: menos de 2 usuários válidos."
+  exit 1
 fi
 
-# ==================== 7. LOGS ====================
-print_header "7. Recent Logs"
+echo "===> Usuários prontos: ${created_users}"
+echo "===> Disparando ${TX_COUNT} transferências (concorrência ${CONCURRENCY})..."
 
-echo ""
-info "--- Hardhat (last 5 lines) ---"
-docker logs --tail 5 hardhat 2>&1
+export BASE_URL USERS_FILE RESULTS_FILE AMOUNT
+export -f with_retry_tx
 
-echo ""
-info "--- Blockchain Service (last 5 lines) ---"
-docker logs --tail 5 blockchain_service 2>&1
+run_one_tx() {
+  local sender recipient s_email s_token s_id r_email r_token r_id tx_res
 
-# ==================== SUMMARY ====================
-print_header "Summary"
+  sender="$(shuf -n 1 "$USERS_FILE")"
+  while true; do
+    recipient="$(shuf -n 1 "$USERS_FILE")"
+    [[ "$recipient" != "$sender" ]] && break
+  done
 
-echo -e "  ${GREEN}Passed: $PASS${NC}"
-echo -e "  ${RED}Failed: $FAIL${NC}"
-echo ""
+  IFS='|' read -r s_email s_token s_id <<<"$sender"
+  IFS='|' read -r r_email r_token r_id <<<"$recipient"
 
-if [ $FAIL -eq 0 ]; then
-    echo -e "${GREEN}  All tests passed! 🎉${NC}"
-    exit 0
-else
-    echo -e "${RED}  Some tests failed! Check logs above.${NC}"
-    exit 1
+  if tx_res="$(with_retry_tx "$s_token" "$r_id" "$AMOUNT")"; then
+    echo "OK|${s_email}->${r_email}" >> "$RESULTS_FILE"
+  else
+    echo "FAIL|${s_email}->${r_email}|${tx_res}" >> "$RESULTS_FILE"
+  fi
+}
+export -f run_one_tx
+
+seq 1 "$TX_COUNT" | xargs -I{} -P "$CONCURRENCY" bash -c 'run_one_tx'
+
+ok_count="$(grep -c '^OK|' "$RESULTS_FILE" || true)"
+fail_count="$(grep -c '^FAIL|' "$RESULTS_FILE" || true)"
+fail_429="$(grep -c 'FAIL|.*|FAIL|429|' "$RESULTS_FILE" || true)"
+fail_401="$(grep -c 'FAIL|.*|FAIL|401|' "$RESULTS_FILE" || true)"
+fail_400="$(grep -c 'FAIL|.*|FAIL|400|' "$RESULTS_FILE" || true)"
+
+echo
+echo "===== RESUMO ====="
+echo "Usuários criados: ${created_users}"
+echo "Transferências OK: ${ok_count}"
+echo "Transferências FAIL: ${fail_count}"
+echo "  - 429: ${fail_429}"
+echo "  - 401: ${fail_401}"
+echo "  - 400: ${fail_400}"
+
+if (( fail_count > 0 )); then
+  echo
+  echo "Exemplos de falha:"
+  grep '^FAIL|' "$RESULTS_FILE" | head -n 10
 fi
