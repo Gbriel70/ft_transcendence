@@ -28,6 +28,12 @@ up:
 	@echo "$(CYAN)$(BOLD)[Docker] Subindo serviços...$(RESET)"
 	$(DC) up -d
 	@echo "$(GREEN)$(BOLD)[OK] Projeto rodando em https://localhost:8443$(RESET)"
+# ══════════════════════════════════════════════════════════════════════════════
+#  make rootless  ──  configura ambiente Docker rootless (sem privilégios de administrador)
+# ══════════════════════════════════════════════════════════════════════════════
+rootless:
+	@chmod +x scripts/setup-rootless.sh
+	@bash scripts/setup-rootless.sh
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  make re  ──  destrói tudo (volumes inclusos), rebuilda e sobe do zero
