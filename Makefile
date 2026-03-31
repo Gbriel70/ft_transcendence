@@ -32,8 +32,8 @@ up:
 #  make rootless  ──  configura ambiente Docker rootless (sem privilégios de administrador)
 # ══════════════════════════════════════════════════════════════════════════════
 rootless:
-	@chmod +x scripts/setup-rootless.sh
-	@bash scripts/setup-rootless.sh
+	@chmod +x scripts/set-rootless-docker.sh
+	@bash scripts/set-rootless-docker.sh
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  make re  ──  destrói tudo (volumes inclusos), rebuilda e sobe do zero

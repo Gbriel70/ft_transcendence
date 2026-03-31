@@ -10,6 +10,13 @@ echo "=== Rootless Docker Installation Script ==="
 echo "Custom directory: $CUSTOM_DOCKER_DIR"
 echo ""
 
+# Skip setup if rootless Docker env path is already configured.
+if [ -n "${DOCKER_CONTAINERS_PATH:-}" ]; then
+    echo "DOCKER_CONTAINERS_PATH is already set to: $DOCKER_CONTAINERS_PATH"
+    echo "Rootless Docker setup appears to be already configured. Skipping."
+    exit 0
+fi
+
 # Function to check if command succeeded
 check_error() {
     if [ $? -ne 0 ]; then
