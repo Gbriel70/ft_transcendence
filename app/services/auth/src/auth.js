@@ -598,22 +598,36 @@ app.get('/gdpr/export', async (req, res) =>
 
         const authData = authResult.rows[0];
 
-        // Fetch profile from user service
+        // Fetch profile + blockchain data from user service GDPR aggregation endpoint
         const userServiceUrl = process.env.USER_SERVICE_URL || 'http://user_service:3002';
         let profileData = null;
+        let blockchainData = null;
+        let partialExport = false;
         try
         {
-            const profileRes = await fetch(`${userServiceUrl}/users/me/data`, {
+            const gdprRes = await fetch(`${userServiceUrl}/users/me/gdpr-export`, {
                 headers: {
                     'Authorization': req.headers['authorization'],
                     'x-internal-secret': config.internalSecret,
                 }
             });
-            if (profileRes.ok) profileData = await profileRes.json();
+            if (gdprRes.ok)
+            {
+                const gdprData = await gdprRes.json();
+                profileData = gdprData.profile || null;
+                blockchainData = gdprData.blockchain || null;
+                
+                // Mark as partial if blockchain had issues
+                if (blockchainData && blockchainData.partial_export)
+                {
+                    partialExport = true;
+                }
+            }
         }
         catch (e)
         {
-            console.warn('Could not fetch profile data for export:', e.message);
+            console.warn('Could not fetch GDPR export data:', e.message);
+            partialExport = true;
         }
 
         const exportData = {
@@ -625,14 +639,31 @@ app.get('/gdpr/export', async (req, res) =>
                 registered_at: authData.created_at,
             },
             profile: profileData || null,
+            blockchain: blockchainData || null,
+            export_metadata: {
+                partial_export: partialExport,
+                notes: partialExport ? 'Some data may be incomplete due to service unavailability' : null
+            }
         };
+
+        const exportedAtTime = new Date().toUTCString();
+        const blockchainNote = blockchainData 
+            ? `<p>Your blockchain wallet data (balance and transaction history) has been included.</p>`
+            : `<p>Your blockchain wallet data could not be retrieved; please retry or contact support.</p>`;
 
         await sendEmail(
             authData.email,
             'MiniBank — Your data export',
             `<p>Hello ${authData.name},</p>
-             <p>Your personal data export was downloaded on ${new Date().toUTCString()}.</p>
-             <p>The exported file contains all data we hold about your account.</p>
+             <p>Your personal data export was downloaded on ${exportedAtTime}.</p>
+             <p>The exported file contains:</p>
+             <ul>
+               <li>Account information (email, name, registration date)</li>
+               <li>Profile information (wallet address, profile data)</li>
+               ${blockchainData && !blockchainData.partial_export ? '<li>Blockchain data (balance snapshot, transaction history)</li>' : ''}
+             </ul>
+             ${blockchainNote}
+             <p>On-chain transactions are immutable and cannot be deleted. Your account and profile data will be permanently deleted if you request account deletion.</p>
              <p>If you did not request this, please contact support immediately.</p>`
         );
 
@@ -686,6 +717,13 @@ app.post('/gdpr/delete-request', async (req, res) =>
             `<p>Hello ${user.name},</p>
              <p>We received a request to permanently delete your MiniBank account and all associated data.</p>
              <p><strong>This action is irreversible.</strong></p>
+             <p>Upon deletion, the following will be permanently removed:</p>
+             <ul>
+               <li>Your account credentials and profile information</li>
+               <li>Your wallet address association</li>
+               <li>All personal data stored in our database</li>
+             </ul>
+             <p><strong>Important:</strong> Transactions recorded on the blockchain are immutable and will remain permanently on-chain. Your account deletion does not remove or modify on-chain transaction history.</p>
              <p>To confirm, click the link below (valid for 24 hours):</p>
              <p><a href="${confirmUrl}">${confirmUrl}</a></p>
              <p>If you did not request this, you can safely ignore this email — your account will remain active.</p>`
@@ -737,7 +775,13 @@ app.delete('/gdpr/confirm-delete', async (req, res) =>
             'MiniBank — Your account has been deleted',
             `<p>Hello ${name},</p>
              <p>Your MiniBank account and all associated personal data have been permanently deleted as requested.</p>
-             <p>This includes your profile, transaction history, and wallet information.</p>
+             <p>Deleted data includes:</p>
+             <ul>
+               <li>Your account credentials and profile information</li>
+               <li>Your wallet address and association</li>
+               <li>All personal records stored in our database</li>
+             </ul>
+             <p><strong>Note on blockchain data:</strong> Transactions recorded on the blockchain are immutable by design. Your transaction history and any associated on-chain records will remain permanently on the blockchain and cannot be deleted. This is a fundamental property of blockchain technology and applies to all blockchain-based systems.</p>
              <p>We are sorry to see you go. If you ever change your mind, you are always welcome to create a new account.</p>`
         );
 

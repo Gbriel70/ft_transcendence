@@ -79,6 +79,7 @@ const GdprView = {
                         </div>
                         <p style="margin-bottom:1.25rem;line-height:1.6;">
                             Download a copy of all personal data associated with your account in a structured, machine-readable JSON format.
+                            This includes your account information, profile data, wallet balance, and transaction history.
                             A confirmation email will be sent to <strong>${user.email || 'your registered email'}</strong>.
                         </p>
                         <button class="btn-primary-modern" id="export-btn" style="width:auto; padding: 0.6rem 1.5rem;">
@@ -108,11 +109,12 @@ const GdprView = {
                             </div>
                         </div>
                         <p style="margin-bottom:0.75rem;line-height:1.6;">
-                            Permanently delete your account and all associated personal data, including your profile, wallet, and transaction history.
+                            Permanently delete your account and all associated personal data, including your profile and wallet information.
                             <strong>This action is irreversible.</strong>
                         </p>
                         <p style="margin-bottom:1.25rem;line-height:1.6;opacity:0.8;font-size:0.9rem;">
-                            A confirmation link will be sent to your email address. Your account will only be deleted after you click the link.
+                            <strong>Important:</strong> Blockchain transactions are immutable and will remain on-chain permanently. Your account deletion removes your account credentials and profile data only, not your transaction history on the blockchain.
+                            <br />A confirmation link will be sent to your email address. Your account will only be deleted after you click the link.
                         </p>
 
                         <!-- Confirmation step (hidden initially) -->
@@ -174,7 +176,7 @@ const GdprView = {
             if (!btn) return;
             const original = btn.innerHTML;
             btn.disabled = true;
-            btn.textContent = 'Preparing export…';
+            btn.textContent = 'Fetching your data…';
             try {
                 const blob = await api.gdprExport();
                 const url = URL.createObjectURL(blob);
@@ -185,7 +187,7 @@ const GdprView = {
                 a.click();
                 URL.revokeObjectURL(url);
                 a.remove();
-                window.showNotification('Data export downloaded. A confirmation email has been sent.', 'success');
+                window.showNotification('Data export downloaded including blockchain history. A confirmation email has been sent.', 'success');
             } catch (err) {
                 window.showNotification(err.message || 'Export failed. Please try again.', 'error');
             } finally {

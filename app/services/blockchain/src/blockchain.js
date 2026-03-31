@@ -281,6 +281,98 @@ app.get('/wallets/:address/transactions', async (req, res) =>
     }
 });
 
+// GET /wallets/:address/gdpr-export — GDPR: export balance + transaction history with auth guard
+app.get('/wallets/:address/gdpr-export', async (req, res) =>
+{
+    try
+    {
+        // Verify internal secret for direct blockchain access
+        const internalSecret = req.headers['x-internal-secret'];
+        if (internalSecret !== config.internalSecret)
+        {
+            console.warn('GDPR export blocked: invalid internal secret');
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        const { address } = req.params;
+
+        if (!ethers.isAddress(address))
+        {
+            return res.status(400).json({ error: 'Invalid wallet address' });
+        }
+
+        // Fetch current balance
+        const balance = await contract.getBalance(address);
+        const balanceAsOf = new Date().toISOString();
+
+        // Fetch transaction history (last 100 for performance)
+        const incomingFilter = contract.filters.Transfer(null, address);
+        const outgoingFilter = contract.filters.Transfer(address, null);
+
+        const [incomingEvents, outgoingEvents] = await Promise.all([
+            contract.queryFilter(incomingFilter),
+            contract.queryFilter(outgoingFilter)
+        ]);
+
+        const normalizeEvent = (event, direction) =>
+        {
+            const args = event.args || [];
+            const from = (args.from ?? args[0] ?? '').toString();
+            const to = (args.to ?? args[1] ?? '').toString();
+            const amountRaw = args.amount ?? args[2] ?? 0n;
+            const timestampRaw = args.timestamp ?? args[3] ?? 0n;
+            const timestamp = Number(timestampRaw) || 0;
+
+            return {
+                tx_hash: event.transactionHash || null,
+                from,
+                to,
+                amount: amountRaw.toString(),
+                direction,
+                counterparty: direction === 'in' ? from : to,
+                status: 'completed',
+                timestamp,
+                created_at: timestamp > 0
+                    ? new Date(timestamp * 1000).toISOString()
+                    : new Date().toISOString(),
+                block_number: event.blockNumber || null
+            };
+        };
+
+        const allTransactions = [
+            ...incomingEvents.map((event) => normalizeEvent(event, 'in')),
+            ...outgoingEvents.map((event) => normalizeEvent(event, 'out'))
+        ].sort((a, b) => {
+            if ((b.timestamp || 0) !== (a.timestamp || 0)) {
+                return (b.timestamp || 0) - (a.timestamp || 0);
+            }
+            return (b.block_number || 0) - (a.block_number || 0);
+        });
+
+        // Cap transaction list at 100 most recent
+        const TRANSACTION_LIMIT = 100;
+        const transactions = allTransactions.slice(0, TRANSACTION_LIMIT);
+
+        txTotal.inc({ type: 'gdpr_export' });
+        res.json({
+            wallet_address: address,
+            balance_snapshot: balance.toString(),
+            balance_as_of: balanceAsOf,
+            transactions,
+            transaction_count_limit: TRANSACTION_LIMIT,
+            transaction_count_total: allTransactions.length,
+            partial_export: false,
+            notes: null
+        });
+    }
+    catch (error)
+    {
+        console.error('Error fetching GDPR export:', error);
+        txErrorsTotal.inc({ type: 'gdpr_export' });
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // POST /transfer - transferir usando a chave do usuário
 app.post('/transfer', async (req, res) =>
 {

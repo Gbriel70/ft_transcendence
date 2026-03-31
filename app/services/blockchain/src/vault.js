@@ -70,8 +70,18 @@ async function getServiceConfig()
 
     // CORREÇÃO: chamada correta com apenas a key
     const contractAddress = await getSecret('contract_address');
+    let internalSecret;
+    try
+    {
+        internalSecret = await getSecret('internal_secret');
+    }
+    catch (error)
+    {
+        // Keep service booting even if this key is not present in blockchain KV path.
+        internalSecret = process.env.INTERNAL_SECRET || 'internal-secret-key';
+    }
 
-    return { hardhatUrl, contractAddress, port };
+    return { hardhatUrl, contractAddress, port, internalSecret };
 }
 
 module.exports = { getSecret, savePrivateKeyToVault, getPrivateKeyFromVault, getServiceConfig };

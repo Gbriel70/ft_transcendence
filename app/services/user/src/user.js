@@ -230,6 +230,96 @@ app.get('/users/me/data', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /users/me/gdpr-export - GDPR: return profile + blockchain data for authenticated user
+app.get('/users/me/gdpr-export', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = req.user.id;
+    const pool = await getPool();
+
+    // 1. Fetch user profile
+    const profileResult = await pool.query(
+      'SELECT id, auth_user_id, name, wallet_address, created_at, updated_at FROM user_profiles WHERE auth_user_id = $1',
+      [authUserId]
+    );
+
+    if (profileResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    const profile = profileResult.rows[0];
+    const walletAddress = profile.wallet_address;
+
+    // 2. Build response with graceful degradation
+    const response = {
+      profile
+    };
+
+    // 3. Fetch blockchain export if wallet exists
+    if (walletAddress)
+    {
+      try
+      {
+        const BLOCKCHAIN_URL = process.env.BLOCKCHAIN_URL || 'http://blockchain_service:3004';
+        const internalSecret = process.env.INTERNAL_SECRET || 'internal-secret-key';
+        const blockchainRes = await fetch(
+          `${BLOCKCHAIN_URL}/wallets/${walletAddress}/gdpr-export`,
+          {
+            headers: {
+              'x-internal-secret': internalSecret
+            }
+          }
+        );
+
+        if (blockchainRes.ok)
+        {
+          response.blockchain = await blockchainRes.json();
+        }
+        else
+        {
+          console.warn(`Blockchain export failed with status ${blockchainRes.status}`);
+          response.blockchain = {
+            wallet_address: walletAddress,
+            balance_snapshot: null,
+            balance_as_of: null,
+            transactions: [],
+            partial_export: true,
+            notes: 'Blockchain data unavailable'
+          };
+        }
+      }
+      catch (error)
+      {
+        console.warn('Could not fetch blockchain data for GDPR export:', error.message);
+        response.blockchain = {
+          wallet_address: walletAddress,
+          balance_snapshot: null,
+          balance_as_of: null,
+          transactions: [],
+          partial_export: true,
+          notes: 'Blockchain service unavailable'
+        };
+      }
+    }
+    else
+    {
+      response.blockchain = {
+        wallet_address: null,
+        balance_snapshot: null,
+        balance_as_of: null,
+        transactions: [],
+        partial_export: false,
+        notes: 'No wallet associated'
+      };
+    }
+
+    res.json(response);
+  }
+  catch (error) {
+    console.error('Error fetching GDPR export data:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /users/by-username/:username - Buscar usuário por username
 app.get('/users/by-username/:username', async (req, res) => {
   try {
