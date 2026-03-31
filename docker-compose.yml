@@ -34,16 +34,25 @@ services:
     image: postgres:16-alpine
     container_name: postgres
     environment:
+      VAULT_ADDR: http://vault:8200
+      SERVICE_NAME: postgres
+      VAULT_SECRET_PATH: database
+      VAULT_ENV_MAP: POSTGRES_USER:user,POSTGRES_PASSWORD:password
       POSTGRES_DB: minibank_db
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin123
     volumes:
+      - vault_data:/vault-keys:ro
+      - ./app/services/monitoring/scripts:/vault-bootstrap:ro
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    entrypoint: ["/bin/sh", "/vault-bootstrap/vault-env-wrapper.sh"]
+    command: ["docker-entrypoint.sh", "postgres"]
+    depends_on:
+      vault:
+        condition: service_healthy
     networks:
       - minibank-network
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -h localhost -U admin -d minibank_db" ]
+      test: [ "CMD-SHELL", "pg_isready -h localhost -d minibank_db" ]
       interval: 10s
       timeout: 5s
       retries: 15
@@ -93,8 +102,6 @@ services:
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_SECURE: ${SMTP_SECURE:-false}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-noreply@minibank.local}
     volumes:
       - vault_data:/vault-keys:ro
@@ -248,17 +255,26 @@ services:
     ports:
       - "3000:3000"
     environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin123}
+      VAULT_ADDR: http://vault:8200
+      SERVICE_NAME: grafana
+      VAULT_SECRET_PATH: monitoring/grafana
+      VAULT_ENV_MAP: GF_SECURITY_ADMIN_USER:username,GF_SECURITY_ADMIN_PASSWORD:password
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_SECURITY_DISABLE_GRAVATAR: "true"
     volumes:
+      - vault_data:/vault-keys:ro
+      - ./app/services/monitoring/scripts:/vault-bootstrap:ro
       - grafana_data:/var/lib/grafana
       - ./app/services/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./app/services/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    entrypoint: ["/bin/sh", "/vault-bootstrap/vault-env-wrapper.sh"]
+    command: ["/run.sh"]
     depends_on:
-      - prometheus
+      vault:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
     networks:
       - minibank-network
     restart: unless-stopped
@@ -312,8 +328,18 @@ services:
     image: prometheuscommunity/postgres-exporter:v0.15.0
     container_name: postgres_exporter
     environment:
-      DATA_SOURCE_NAME: "postgresql://admin:admin123@postgres:5432/minibank_db?sslmode=disable"
+      VAULT_ADDR: http://vault:8200
+      SERVICE_NAME: postgres_exporter
+      VAULT_SECRET_PATH: monitoring/postgres_exporter
+      VAULT_ENV_MAP: DATA_SOURCE_NAME:datasource
+    volumes:
+      - vault_data:/vault-keys:ro
+      - ./app/services/monitoring/scripts:/vault-bootstrap:ro
+    entrypoint: ["/bin/sh", "/vault-bootstrap/vault-env-wrapper.sh"]
+    command: ["/bin/postgres_exporter"]
     depends_on:
+      vault:
+        condition: service_healthy
       postgres:
         condition: service_healthy
     networks:
@@ -325,22 +351,32 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.17.20
     container_name: elasticsearch
     environment:
+      - VAULT_ADDR=http://vault:8200
+      - SERVICE_NAME=elasticsearch
+      - VAULT_SECRET_PATH=monitoring/elastic
+      - VAULT_ENV_MAP=ELASTIC_PASSWORD:password
       - cluster.name=minibank-logs
       - node.name=elasticsearch
       - discovery.type=single-node
-      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-minibank_elastic}
       - xpack.security.enabled=true
       - xpack.monitoring.enabled=false
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     volumes:
+      - vault_data:/vault-keys:ro
+      - ./app/services/monitoring/scripts:/vault-bootstrap:ro
       - elk_data:/usr/share/elasticsearch/data
       - ./app/services/monitoring/elasticsearch/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
+    entrypoint: ["/bin/sh", "/vault-bootstrap/vault-env-wrapper.sh"]
+    command: ["/usr/local/bin/docker-entrypoint.sh", "eswrapper"]
     ports:
       - "9200:9200"
     networks:
       - minibank-network
+    depends_on:
+      vault:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf -u elastic:${ELASTIC_PASSWORD:-minibank_elastic} http://localhost:9200/_cluster/health || exit 1"]
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 >/dev/null || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 10
@@ -352,12 +388,21 @@ services:
     image: docker.elastic.co/logstash/logstash:7.17.20
     container_name: logstash
     environment:
-      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-minibank_elastic}
+      - VAULT_ADDR=http://vault:8200
+      - SERVICE_NAME=logstash
+      - VAULT_SECRET_PATH=monitoring/elastic
+      - VAULT_ENV_MAP=ELASTIC_PASSWORD:password
       - "LS_JAVA_OPTS=-Xms256m -Xmx256m"
     volumes:
+      - vault_data:/vault-keys:ro
+      - ./app/services/monitoring/scripts:/vault-bootstrap:ro
       - ./app/services/monitoring/logstash/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
       - ./app/services/monitoring/logstash/pipeline:/usr/share/logstash/pipeline:ro
+    entrypoint: ["/bin/sh", "/vault-bootstrap/vault-env-wrapper.sh"]
+    command: ["/usr/local/bin/docker-entrypoint"]
     depends_on:
+      vault:
+        condition: service_healthy
       elasticsearch:
         condition: service_healthy
     networks:
@@ -369,16 +414,24 @@ services:
     image: docker.elastic.co/kibana/kibana:7.17.20
     container_name: kibana
     environment:
+      - VAULT_ADDR=http://vault:8200
+      - SERVICE_NAME=kibana
+      - VAULT_SECRET_PATH=monitoring/elastic
+      - VAULT_ENV_MAP=ELASTICSEARCH_USERNAME:username,ELASTICSEARCH_PASSWORD:password
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-      - ELASTICSEARCH_USERNAME=elastic
-      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD:-minibank_elastic}
       - xpack.security.enabled=true
       - xpack.monitoring.enabled=false
     volumes:
+      - vault_data:/vault-keys:ro
+      - ./app/services/monitoring/scripts:/vault-bootstrap:ro
       - ./app/services/monitoring/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml:ro
+    entrypoint: ["/bin/sh", "/vault-bootstrap/vault-env-wrapper.sh"]
+    command: ["/usr/local/bin/kibana-docker"]
     ports:
       - "5601:5601"
     depends_on:
+      vault:
+        condition: service_healthy
       elasticsearch:
         condition: service_healthy
     networks:
@@ -391,8 +444,6 @@ services:
     container_name: filebeat
     user: root
     command: filebeat -e -strict.perms=false
-    environment:
-      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-minibank_elastic}
     volumes:
       - ./app/services/monitoring/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
       - ${DOCKER_CONTAINERS_PATH:-/var/lib/docker/containers}:/var/lib/docker/containers:ro
@@ -408,11 +459,19 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.17.20
     container_name: elk_setup
     environment:
-      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-minibank_elastic}
+      - VAULT_ADDR=http://vault:8200
+      - SERVICE_NAME=elk_setup
+      - VAULT_SECRET_PATH=monitoring/elastic
+      - VAULT_ENV_MAP=ELASTIC_PASSWORD:password
     volumes:
+      - vault_data:/vault-keys:ro
+      - ./app/services/monitoring/scripts:/vault-bootstrap:ro
       - ./app/services/monitoring/elk/setup-elk.sh:/setup-elk.sh:ro
-    entrypoint: ["/bin/bash", "/setup-elk.sh"]
+    entrypoint: ["/bin/sh", "/vault-bootstrap/vault-env-wrapper.sh"]
+    command: ["/bin/bash", "/setup-elk.sh"]
     depends_on:
+      vault:
+        condition: service_healthy
       elasticsearch:
         condition: service_healthy
     networks:

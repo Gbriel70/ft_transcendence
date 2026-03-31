@@ -6,13 +6,13 @@ let pool;
 // WAIT FOR POSTGRES TO BE REACHABLE OVER TCP
 // (during docker-entrypoint-initdb.d execution postgres only listens on
 //  a Unix socket, so pg_isready passes but TCP connections are refused)
-async function waitForPostgres(host, port, maxAttempts = 30, delayMs = 3000)
+async function waitForPostgres(host, port, user, password, maxAttempts = 30, delayMs = 3000)
 {
     for (let attempt = 1; attempt <= maxAttempts; attempt++)
     {
         try
         {
-            const testPool = new Pool({ host, port, database: 'postgres', user: 'admin', password: 'admin123', connectionTimeoutMillis: 3000 });
+            const testPool = new Pool({ host, port, database: 'postgres', user, password, connectionTimeoutMillis: 3000 });
             const client = await testPool.connect();
             client.release();
             await testPool.end();
@@ -38,7 +38,7 @@ async function createPool()
     const { database } = config;
 
     // Wait until postgres TCP port is accepting connections
-    await waitForPostgres(database.host, database.port);
+    await waitForPostgres(database.host, database.port, database.user, database.password);
 
     pool = new Pool
     ({

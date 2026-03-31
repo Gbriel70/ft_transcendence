@@ -63,17 +63,28 @@ logs:
 ps:
 	$(DC) ps
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  make credentials  ──  display dashboard login credentials from Vault
+# ══════════════════════════════════════════════════════════════════════════════
+credentials:
+	@echo "$(CYAN)$(BOLD)📊 GRAFANA$(RESET)"
+	@docker exec vault vault kv get -format=table secret/monitoring/grafana
+	@echo ""
+	@echo "$(CYAN)$(BOLD)🔍 KIBANA / ELASTICSEARCH$(RESET)"
+	@docker exec vault vault kv get -format=table secret/monitoring/elastic
+
 # ── Ajuda ─────────────────────────────────────────────────────────────────────
 help:
 	@echo ""
 	@echo "$(BOLD)Uso:$(RESET)"
-	@echo "  make          Gera certificados SSL, faz build e sobe o projeto"
-	@echo "  make re       Destrói tudo (volumes) e sobe do zero"
-	@echo "  make clean    Para e remove containers + volumes"
-	@echo "  make down     Apenas para os containers (mantém volumes)"
-	@echo "  make prune    Limpa TODO o ambiente Docker"
-	@echo "  make logs     Acompanha os logs em tempo real"
-	@echo "  make ps       Lista o status dos serviços"
+	@echo "  make            Gera certificados SSL, faz build e sobe o projeto"
+	@echo "  make re         Destrói tudo (volumes) e sobe do zero"
+	@echo "  make clean      Para e remove containers + volumes"
+	@echo "  make down       Apenas para os containers (mantém volumes)"
+	@echo "  make prune      Limpa TODO o ambiente Docker"
+	@echo "  make logs       Acompanha os logs em tempo real"
+	@echo "  make ps         Lista o status dos serviços"
+	@echo "  make credentials Exibe credenciais de login dos dashboards (Grafana, Kibana)"
 	@echo ""
 
-.PHONY: all certs build up down down-hard re clean prune logs ps help
+.PHONY: all certs build up down down-hard re clean prune logs ps credentials help

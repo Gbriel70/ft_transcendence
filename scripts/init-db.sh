@@ -3,34 +3,12 @@ set -e
 
 echo "INITIALIZING DATABASE WITH VAULT CREDENTIALS..."
 
-MAX_WAIT=60
-WAITED=0
+DB_USER="${POSTGRES_USER:-}"
+DB_PASS="${POSTGRES_PASSWORD:-}"
 
-while [ $WAITED -lt $MAX_WAIT ]; do
-    if curl -sf http://vault:8200/v1/sys/health >/dev/null 2>&1; then
-        echo "VAULT IS READY!"
-        break
-    fi
-    echo "WAITING FOR VAULT... ($WAITED/$MAX_WAIT)"
-    sleep 2
-    WAITED=$((WAITED + 2))
-done
-
-if [ $WAITED -ge $MAX_WAIT ]; then
-    echo "VAULT NOT READY, USING FALLBACK CREDENTIALS"
-    DB_USER="minibank_user"
-    DB_PASS="minibank_password"
-else
-    # PEAK INTO VAULT TO GET ROOT TOKEN
-    VAULT_TOKEN=$(cat /vault-approle/vault-keys.env | grep VAULT_ROOT_TOKEN | cut -d'=' -f2)
-    
-    # SEARCH DATABASE CREDENTIALS IN VAULT
-    DB_CREDS=$(curl -sf \
-        -H "X-Vault-Token: $VAULT_TOKEN" \
-        http://vault:8200/v1/secret/data/database | jq -r '.data.data')
-    
-    DB_USER=$(echo "$DB_CREDS" | jq -r '.user')
-    DB_PASS=$(echo "$DB_CREDS" | jq -r '.password')
+if [ -z "$DB_USER" ] || [ -z "$DB_PASS" ]; then
+    echo "POSTGRES_USER or POSTGRES_PASSWORD is empty; Vault bootstrap did not inject credentials"
+    exit 1
 fi
 
 # CREATE DATABASE AND USER
