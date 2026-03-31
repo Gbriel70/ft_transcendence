@@ -42,3 +42,8 @@ Core services:
 ## Result
 
 The backend provides a modular, secure, and maintainable foundation: clear domain boundaries, centralized secret handling, reliable authentication flows, and integrated blockchain operations.
+
+## Navigation
+<!-- doc-nav -->
+- [README](../README.md)
+- [Next - FRONTEND](FRONTEND.md)

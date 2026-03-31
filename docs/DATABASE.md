@@ -130,3 +130,8 @@ CREATE INDEX IF NOT EXISTS idx_gdpr_token ON gdpr_delete_requests(token);
 - `scripts/init-db.sh`
 - `app/services/auth/src/db.js`
 - `app/services/user/src/db.js`
+
+## Navigation
+<!-- doc-nav -->
+- [README](../README.md)
+- [Next - DOCKER](DOCKER.md)

@@ -66,3 +66,8 @@ In this project, Docker is the execution backbone. It standardizes environment s
 - `scripts/init-db.sh` (database bootstrap)
 - `app/vault/init-vault.sh` (secret management bootstrap)
 - `app/nginx/dockerfile` (gateway image build)
+
+## Navigation
+<!-- doc-nav -->
+- [README](../README.md)
+- [Next - ELK](ELK.md)

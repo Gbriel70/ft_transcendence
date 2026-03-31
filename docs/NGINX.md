@@ -63,3 +63,8 @@ Short flow:
 ## Quick summary
 
 In this project, NGINX is the component that connects frontend, APIs, and monitoring with strong security and a single entry pattern. It simplifies architecture, improves protection, and makes operations easier.
+
+## Navigation
+<!-- doc-nav -->
+- [README](../README.md)
+- [Next - VAULT](VAULT.md)

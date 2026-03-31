@@ -52,3 +52,8 @@ This creates a dual record model:
 ## Practical result
 
 In this project, blockchain is used as a trust and proof layer. It does not replace the application database; it complements it by providing immutable evidence for financial operations.
+
+## Navigation
+<!-- doc-nav -->
+- [README](../README.md)
+- [Next - DATABASE](DATABASE.md)

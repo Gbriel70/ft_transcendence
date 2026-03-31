@@ -55,3 +55,8 @@ In this project, microservices provide a clear separation between identity, prof
 - `app/services/user/src/user.js` (profile domain)
 - `app/services/transaction/src/transaction.js` (transfer orchestration)
 - `app/services/blockchain/src/blockchain.js` (wallet and chain operations)
+
+## Navigation
+<!-- doc-nav -->
+- [README](../README.md)
+- [Next - MONITORING](MONITORING.MD)

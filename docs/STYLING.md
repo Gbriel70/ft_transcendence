@@ -82,3 +82,8 @@ Therefore, the frontend does not rely on one-off plain CSS per page, but on a co
 - app/frontend/js/views/gdpr-confirm.js
 - app/frontend/js/views/terms.js
 - app/frontend/js/utils/notifications.js
+
+## Navigation
+<!-- doc-nav -->
+- [README](../README.md)
+- [Next - CODE_STRUCTURE](CODE_STRUCTURE.md)

@@ -92,3 +92,8 @@ In this project, monitoring provides continuous runtime awareness, faster incide
 - app/services/monitoring/grafana/provisioning
 - app/services/monitoring/grafana/dashboards
 - docker-compose.yml
+
+## Navigation
+<!-- doc-nav -->
+- [README](../README.md)
+- [Next - USER_MANAGEMENT](USER_MANAGEMENT.md)

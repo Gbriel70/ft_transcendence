@@ -71,3 +71,8 @@ In this project, 2FA provides a practical second-factor control from enrollment 
 - app/frontend/js/services/api.js
 - app/frontend/js/views/login.js
 - app/frontend/js/views/profile.js
+
+## Navigation
+<!-- doc-nav -->
+- [README](../README.md)
+- [Next - BLOCKCHAIN](BLOCKCHAIN.md)

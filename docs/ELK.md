@@ -105,3 +105,8 @@ Recommended operator workflow:
 - `app/services/monitoring/kibana/kibana.yml`
 - `app/services/monitoring/elk/setup-elk.sh`
 - `docker-compose.yml`
+
+## Navigation
+<!-- doc-nav -->
+- [README](../README.md)
+- [Next - GDPR](GDPR.md)

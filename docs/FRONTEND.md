@@ -48,3 +48,8 @@ Practical flow:
 ## Result
 
 The frontend provides a unified experience layer for all system modules, with simple navigation, direct service integration, and low maintenance cost.
+
+## Navigation
+<!-- doc-nav -->
+- [README](../README.md)
+- [Next - STYLING](STYLING.md)

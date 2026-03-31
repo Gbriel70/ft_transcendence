@@ -79,3 +79,8 @@ In this project, GDPR is implemented as a practical end-to-end flow: authenticat
 - `app/frontend/js/views/gdpr-confirm.js`
 - `app/frontend/js/services/api.js`
 - `scripts/init-db.sh`
+
+## Navigation
+<!-- doc-nav -->
+- [README](../README.md)
+- [Next - MICROSERVICES](MICROSERVICES.md)

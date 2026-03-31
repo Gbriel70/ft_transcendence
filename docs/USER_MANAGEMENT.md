@@ -65,3 +65,8 @@ In this project, user management provides secure identity control and reliable p
 - docs/2FA.md
 - docs/user-management/AUTH_API.md
 - docs/user-management/SECURITY.md
+
+## Navigation
+<!-- doc-nav -->
+- [README](../README.md)
+- [Next - BACKEND](BACKEND.md)

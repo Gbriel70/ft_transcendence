@@ -41,11 +41,17 @@ Throughout the project, we used AI assistance in our development process. It hel
 
 The project includes documentation for the main features and technologies used. Most documents follow a clear "why/how" format to make technical decisions and implementation easier to understand.
 
-- A brief backend document:
+- A brief backend documentation:
 [backend](docs/BACKEND.md)
 
-- A frontend document:
+- A frontend documentation:
 [frontend](docs/FRONTEND.md)
+
+- Styling documentation:
+[styling](docs/STYLING.md)
+
+- Code structure documentation:
+[code-structure](docs/CODE_STRUCTURE.md)
 
 - NGINX documentation (gateway, routing, and security):
 [nginx](docs/NGINX.md)
@@ -305,3 +311,8 @@ Total of 19 points.
 `fde-alen` contributed to the DevOps and compliance layers, including monitoring setup, GDPR-related features, and centralized logging analysis. He supported cybersecurity tasks, observability improvements, and troubleshooting efforts to stabilize the platform during integration.
 
 `sdavi-al` was responsible for the full frontend implementation, including page structure, user interaction flows, and UI consistency across the application. He also contributed to user management interfaces, browser compatibility adjustments, and fixes to keep the user experience stable and cohesive.
+
+## Navigation
+<!-- doc-nav -->
+- [README](README.md)
+- [Next](docs/BACKEND.md)
