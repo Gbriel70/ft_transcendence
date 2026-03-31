@@ -555,13 +555,15 @@ app.get('/2fa/status', async (req, res) =>
 function createMailTransporter() {
     const host = process.env.SMTP_HOST;
     if (!host) return null;
+    const smtpUser = config?.smtpUser || '';
+    const smtpPass = config?.smtpPass || '';
     return nodemailer.createTransport({
         host,
         port: parseInt(process.env.SMTP_PORT || '587'),
         secure: process.env.SMTP_SECURE === 'true',
-        auth: process.env.SMTP_USER ? {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS || '',
+        auth: smtpUser ? {
+            user: smtpUser,
+            pass: smtpPass,
         } : undefined,
     });
 }

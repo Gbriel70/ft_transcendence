@@ -163,6 +163,8 @@ class VaultClient
             },
             port:           parseInt(serviceConfig.port),
             bcryptRounds:   parseInt(serviceConfig.bcrypt_rounds) || 12,
+            smtpUser:       serviceConfig.smtp_user || '',
+            smtpPass:       serviceConfig.smtp_pass || '',
             internalSecret: serviceConfig.internal_secret   // ← CORREÇÃO
         };
     }

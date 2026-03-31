@@ -28,6 +28,12 @@ up:
 	@echo "$(CYAN)$(BOLD)[Docker] Subindo serviços...$(RESET)"
 	$(DC) up -d
 	@echo "$(GREEN)$(BOLD)[OK] Projeto rodando em https://localhost:8443$(RESET)"
+# ══════════════════════════════════════════════════════════════════════════════
+#  make rootless  ──  configura ambiente Docker rootless (sem privilégios de administrador)
+# ══════════════════════════════════════════════════════════════════════════════
+rootless:
+	@chmod +x scripts/set-rootless-docker.sh
+	@bash scripts/set-rootless-docker.sh
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  make re  ──  destrói tudo (volumes inclusos), rebuilda e sobe do zero
@@ -40,11 +46,11 @@ re: down-hard build up
 clean: down-hard
 
 # ── Internos ──────────────────────────────────────────────────────────────────
-down:
+down-hard:
 	@echo "$(CYAN)$(BOLD)[Docker] Parando serviços...$(RESET)"
 	$(DC) down
 
-down-hard:
+down:
 	@echo "$(CYAN)$(BOLD)[Docker] Removendo containers e volumes...$(RESET)"
 	$(DC) down -v --remove-orphans
 	docker volume prune -f
@@ -63,17 +69,28 @@ logs:
 ps:
 	$(DC) ps
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  make credentials  ──  display dashboard login credentials from Vault
+# ══════════════════════════════════════════════════════════════════════════════
+credentials:
+	@echo "$(CYAN)$(BOLD)📊 GRAFANA$(RESET)"
+	@docker exec vault vault kv get -format=table secret/monitoring/grafana
+	@echo ""
+	@echo "$(CYAN)$(BOLD)🔍 KIBANA / ELASTICSEARCH$(RESET)"
+	@docker exec vault vault kv get -format=table secret/monitoring/elastic
+
 # ── Ajuda ─────────────────────────────────────────────────────────────────────
 help:
 	@echo ""
 	@echo "$(BOLD)Uso:$(RESET)"
-	@echo "  make          Gera certificados SSL, faz build e sobe o projeto"
-	@echo "  make re       Destrói tudo (volumes) e sobe do zero"
-	@echo "  make clean    Para e remove containers + volumes"
-	@echo "  make down     Apenas para os containers (mantém volumes)"
-	@echo "  make prune    Limpa TODO o ambiente Docker"
-	@echo "  make logs     Acompanha os logs em tempo real"
-	@echo "  make ps       Lista o status dos serviços"
+	@echo "  make            Gera certificados SSL, faz build e sobe o projeto"
+	@echo "  make re         Destrói tudo (volumes) e sobe do zero"
+	@echo "  make clean      Para e remove containers + volumes"
+	@echo "  make down       Apenas para os containers (mantém volumes)"
+	@echo "  make prune      Limpa TODO o ambiente Docker"
+	@echo "  make logs       Acompanha os logs em tempo real"
+	@echo "  make ps         Lista o status dos serviços"
+	@echo "  make credentials Exibe credenciais de login dos dashboards (Grafana, Kibana)"
 	@echo ""
 
-.PHONY: all certs build up down down-hard re clean prune logs ps help
+.PHONY: all certs build up down down-hard re clean prune logs ps credentials help

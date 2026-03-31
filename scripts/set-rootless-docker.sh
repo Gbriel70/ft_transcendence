@@ -10,6 +10,13 @@ echo "=== Rootless Docker Installation Script ==="
 echo "Custom directory: $CUSTOM_DOCKER_DIR"
 echo ""
 
+# Skip setup if rootless Docker env path is already configured.
+if [ -n "${DOCKER_CONTAINERS_PATH:-}" ]; then
+    echo "DOCKER_CONTAINERS_PATH is already set to: $DOCKER_CONTAINERS_PATH"
+    echo "Rootless Docker setup appears to be already configured. Skipping."
+    exit 0
+fi
+
 # Function to check if command succeeded
 check_error() {
     if [ $? -ne 0 ]; then
@@ -66,10 +73,16 @@ echo ""
 echo "Step 3: Configuring environment variables..."
 
 SHELL_CONFIG=""
-if [ -f "$HOME/.bashrc" ]; then
+CURRENT_SHELL="$(basename "${SHELL:-}")"
+
+if [ "$CURRENT_SHELL" = "zsh" ]; then
+    SHELL_CONFIG="$HOME/.zshrc"
+elif [ "$CURRENT_SHELL" = "bash" ]; then
     SHELL_CONFIG="$HOME/.bashrc"
 elif [ -f "$HOME/.zshrc" ]; then
     SHELL_CONFIG="$HOME/.zshrc"
+elif [ -f "$HOME/.bashrc" ]; then
+    SHELL_CONFIG="$HOME/.bashrc"
 fi
 
 if [ -n "$SHELL_CONFIG" ]; then
@@ -209,6 +222,6 @@ echo "  - Check status: systemctl --user status docker"
 echo "  - View logs: journalctl --user -u docker"
 
 
-# transformar em executavel
-# checar se é root?
-# - talvez nao incluir script, só rodar nas nossas máquinas e setar rootless docker pra gente.
+# systemctl --user status docker
+# tem que mostrar "Docs: https://docs.docker.com/go/rootless/""
+

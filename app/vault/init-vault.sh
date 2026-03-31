@@ -179,9 +179,19 @@ log_info "Creating secrets..."
 # CORREÇÃO: internal_secret gerado uma vez e compartilhado entre auth e user
 INTERNAL_SECRET=$(openssl rand -hex 32)
 
+EXISTING_DB_SECRET=$(vault kv get -format=json secret/database 2>/dev/null || true)
+
+if [ -n "$EXISTING_DB_SECRET" ]; then
+    DB_USER=$(echo "$EXISTING_DB_SECRET" | jq -r '.data.data.user')
+    DB_PASSWORD=$(echo "$EXISTING_DB_SECRET" | jq -r '.data.data.password')
+else
+    DB_USER="minibank_admin"
+    DB_PASSWORD=$(openssl rand -hex 16)
+fi
+
 vault kv put secret/database \
     host=postgres port=5432 name=minibank_db \
-    user=admin password=admin123 >/dev/null 2>&1
+    user="$DB_USER" password="$DB_PASSWORD" >/dev/null 2>&1
 
 JWT_SECRET=$(openssl rand -base64 64 | tr -d '\n')
 vault kv put secret/jwt \
@@ -190,7 +200,9 @@ vault kv put secret/jwt \
 vault kv put secret/auth \
     port=3001 \
     bcrypt_rounds=12 \
-    internal_secret="$INTERNAL_SECRET" >/dev/null 2>&1
+    internal_secret="$INTERNAL_SECRET" \
+    smtp_user="" \
+    smtp_pass="" >/dev/null 2>&1
 
 vault kv put secret/user \
     port=3002 \
@@ -199,7 +211,21 @@ vault kv put secret/user \
 vault kv put secret/transaction port=3003 >/dev/null 2>&1
 vault kv put secret/blockchain   port=3004 >/dev/null 2>&1
 
-log_success "  6 secrets created"
+GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 16)
+ELASTIC_PASSWORD=$(openssl rand -hex 16)
+
+vault kv put secret/monitoring/grafana \
+    username=admin \
+    password="$GRAFANA_ADMIN_PASSWORD" >/dev/null 2>&1
+
+vault kv put secret/monitoring/elastic \
+    username=elastic \
+    password="$ELASTIC_PASSWORD" >/dev/null 2>&1
+
+vault kv put secret/monitoring/postgres_exporter \
+    datasource="postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/minibank_db?sslmode=disable" >/dev/null 2>&1
+
+log_success "  9 secrets created"
 
 # ==================== POLICIES ====================
 log_info "Creating policies..."
@@ -225,13 +251,48 @@ path "secret/data/jwt"          { capabilities = ["read"] }
 EOF
 vault policy write transaction-service /tmp/transaction-policy.hcl >/dev/null 2>&1
 
+cat > /tmp/postgres-policy.hcl <<'EOF'
+path "secret/data/database" { capabilities = ["read"] }
+EOF
+vault policy write postgres-service /tmp/postgres-policy.hcl >/dev/null 2>&1
+
 cat > /tmp/blockchain-policy.hcl <<'EOF'
 path "secret/data/blockchain" { capabilities = ["read", "create", "update"] }
 path "secret/data/wallets/*"  { capabilities = ["read", "create", "update"] }
 EOF
 vault policy write blockchain-service /tmp/blockchain-policy.hcl >/dev/null 2>&1
 
-log_success "  4 policies created"
+cat > /tmp/grafana-policy.hcl <<'EOF'
+path "secret/data/monitoring/grafana" { capabilities = ["read"] }
+EOF
+vault policy write grafana-service /tmp/grafana-policy.hcl >/dev/null 2>&1
+
+cat > /tmp/elasticsearch-policy.hcl <<'EOF'
+path "secret/data/monitoring/elastic" { capabilities = ["read"] }
+EOF
+vault policy write elasticsearch-service /tmp/elasticsearch-policy.hcl >/dev/null 2>&1
+
+cat > /tmp/kibana-policy.hcl <<'EOF'
+path "secret/data/monitoring/elastic" { capabilities = ["read"] }
+EOF
+vault policy write kibana-service /tmp/kibana-policy.hcl >/dev/null 2>&1
+
+cat > /tmp/logstash-policy.hcl <<'EOF'
+path "secret/data/monitoring/elastic" { capabilities = ["read"] }
+EOF
+vault policy write logstash-service /tmp/logstash-policy.hcl >/dev/null 2>&1
+
+cat > /tmp/elk-setup-policy.hcl <<'EOF'
+path "secret/data/monitoring/elastic" { capabilities = ["read"] }
+EOF
+vault policy write elk_setup-service /tmp/elk-setup-policy.hcl >/dev/null 2>&1
+
+cat > /tmp/postgres-exporter-policy.hcl <<'EOF'
+path "secret/data/monitoring/postgres_exporter" { capabilities = ["read"] }
+EOF
+vault policy write postgres_exporter-service /tmp/postgres-exporter-policy.hcl >/dev/null 2>&1
+
+log_success "  11 policies created"
 
 # ==================== APPROLE ====================
 log_info "Setting up AppRole..."
@@ -239,7 +300,7 @@ log_info "Setting up AppRole..."
 vault auth enable approle 2>/dev/null || log_info " AppRole enabled"
 mkdir -p "$APPROLE_DIR"
 
-for service in auth user transaction blockchain; do
+for service in auth user transaction blockchain postgres grafana elasticsearch kibana logstash elk_setup postgres_exporter; do
     vault write auth/approle/role/${service}-service \
         token_ttl=1h token_max_ttl=4h \
         token_policies="${service}-service" \
@@ -250,7 +311,7 @@ for service in auth user transaction blockchain; do
 
     echo "$ROLE_ID"   > "$APPROLE_DIR/${service}_role_id"
     echo "$SECRET_ID" > "$APPROLE_DIR/${service}_secret_id"
-    chmod 600 "$APPROLE_DIR/${service}_role_id" "$APPROLE_DIR/${service}_secret_id"
+    chmod 644 "$APPROLE_DIR/${service}_role_id" "$APPROLE_DIR/${service}_secret_id"
 
     log_success "  ${service}-service"
 done
@@ -265,9 +326,9 @@ echo -e "${BLUE}Status:${NC}"
 vault status 2>&1 | grep -E "(Initialized|Sealed|Version)" || echo "   Running"
 echo ""
 echo -e "${BLUE}Resources Created:${NC}"
-echo "   6 secrets (database, jwt, 4 configs)"
-echo "   4 policies (granular access)"
-echo "   4 AppRoles (service authentication)"
+echo "   9 secrets (core + monitoring credentials)"
+echo "   11 policies (granular access)"
+echo "   11 AppRoles (service authentication)"
 echo ""
 echo -e "${YELLOW}Root Token: ${VAULT_ROOT_TOKEN:0:20}...${NC}"
 echo -e "${YELLOW}Keys: $VAULT_KEYS_FILE${NC}"

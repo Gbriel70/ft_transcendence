@@ -6,7 +6,13 @@ set -euo pipefail
 ES_URL="http://elasticsearch:9200"
 KIBANA_URL="http://kibana:5601"
 ES_USER="elastic"
-ES_PASS="${ELASTIC_PASSWORD:-minibank_elastic}"
+ES_PASS="${ELASTIC_PASSWORD:-}"
+
+if [ -z "${ES_PASS}" ]; then
+  echo "[setup-elk] ELASTIC_PASSWORD is empty. Vault bootstrap did not inject credentials."
+  exit 1
+fi
+
 AUTH="-u ${ES_USER}:${ES_PASS}"
 
 # ── 1. Wait for Elasticsearch ──────────────────────────────────────────────────
