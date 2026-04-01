@@ -23,6 +23,7 @@
   - Logstash to collect and transform logs. [X]
   - Kibana for visualization and dashboards. [X]
   - Implement log retention and archiving policies. [X] ILM: hot(7d/10GB) → warm → cold(15d) → delete(30d)
+    Navigate to Stack Management → Index Lifecycle Policies:
   - Secure access to all components. [X] xpack.security + Kibana login + nginx TLS proxy
 
 #### - Major: Backend as microservices. [X]
