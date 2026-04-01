@@ -362,6 +362,7 @@ services:
       - discovery.type=single-node
       - xpack.security.enabled=true
       - xpack.monitoring.enabled=false
+      - cluster.routing.allocation.disk.threshold_enabled=false
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     volumes:
       - vault_data:/vault-keys:ro
@@ -419,7 +420,8 @@ services:
       - VAULT_ADDR=http://vault:8200
       - SERVICE_NAME=kibana
       - VAULT_SECRET_PATH=monitoring/elastic
-      - VAULT_ENV_MAP=ELASTICSEARCH_USERNAME:username,ELASTICSEARCH_PASSWORD:password
+      - VAULT_ENV_MAP=ELASTICSEARCH_PASSWORD:password
+      - ELASTICSEARCH_USERNAME=elastic
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - xpack.security.enabled=true
       - xpack.monitoring.enabled=false
