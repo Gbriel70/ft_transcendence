@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minibank - ft_transcendence</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css?v=9">
+</head>
+
+<body>
+
+    <div id="app">
+        <div style="display: flex; justify-content: center; align-items: center; height: 100vh;">
+            <div style="width: 48px; height: 48px; border: 4px solid rgba(23, 181, 186, 0.3); border-top-color: #17b5ba; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+
+    <!-- notifications.js is a plain (non-module) script — sets window.showNotification globally.
+         Loaded from 'self', which is allowed by the CSP script-src directive. -->
+    <script src="js/utils/notifications.js?v=8"></script>
+    <script type="module" src="js/app.js?v=9"></script>
+</body>
+
+</html>

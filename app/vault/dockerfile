@@ -1,0 +1,18 @@
+FROM hashicorp/vault:1.15
+
+RUN apk add --no-cache \
+    openssl \
+    jq \
+    bash \
+    curl
+
+RUN mkdir -p /vault/data /vault/logs /vault/config
+
+COPY vault-config.hcl /vault/config/vault-config.hcl
+COPY init-vault.sh /vault/init-vault.sh
+
+RUN chmod +x /vault/init-vault.sh
+
+EXPOSE 8200
+
+ENTRYPOINT ["/vault/init-vault.sh"]

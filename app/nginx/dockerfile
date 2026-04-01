@@ -1,0 +1,43 @@
+FROM owasp/modsecurity-crs:nginx-alpine
+
+USER root
+
+RUN apk add --no-cache \
+    openssl \
+    curl \
+    netcat-openbsd
+
+RUN mkdir -p \
+    /etc/nginx/certs \
+    /etc/nginx/conf.d \
+    /etc/nginx/sites \
+    /var/log/modsecurity \
+    /usr/share/nginx/html
+
+COPY frontend/ /usr/share/nginx/html/
+
+COPY nginx/nginx.conf /etc/nginx/nginx.conf
+COPY nginx/conf.d/ /etc/nginx/conf.d/
+COPY nginx/sites/ /etc/nginx/sites/
+
+COPY nginx/modsecurity/modsecurity.conf /etc/modsecurity.d/modsecurity.conf
+COPY nginx/modsecurity/custom_rules.conf /etc/modsecurity.d/user-conf/custom_rules.conf
+COPY nginx/modsecurity/exclusions.conf /etc/modsecurity.d/user-conf/exclusions.conf
+
+COPY nginx/docker-entrypoint.sh /docker-entrypoint.sh
+
+RUN chmod +x /docker-entrypoint.sh && \
+    chmod -R 755 /usr/share/nginx/html && \
+    chown -R nginx:nginx \
+    /var/log/nginx \
+    /var/log/modsecurity \
+    /var/cache/nginx \
+    /usr/share/nginx/html
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost/health || exit 1
+
+EXPOSE 80 443
+
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["nginx", "-g", "daemon off;"]

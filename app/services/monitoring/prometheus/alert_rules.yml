@@ -1,0 +1,371 @@
+groups:
+
+  # ── Infrastructure ──────────────────────────────────────────────────────────
+  - name: infrastructure
+    rules:
+      - alert: InstanceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+          group: infrastructure
+        annotations:
+          summary: "Instance {{ $labels.instance }} is down"
+          description: "Prometheus target {{ $labels.job }}/{{ $labels.instance }} has been unreachable for more than 2 minutes."
+
+      - alert: HighNodeCpuUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 5m
+        labels:
+          severity: warning
+          group: infrastructure
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage has been above 85% for 5 minutes on {{ $labels.instance }}. Current: {{ $value | printf \"%.1f\" }}%."
+
+      - alert: CriticalNodeCpuUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 95
+        for: 2m
+        labels:
+          severity: critical
+          group: infrastructure
+        annotations:
+          summary: "Critical CPU usage on {{ $labels.instance }}"
+          description: "CPU usage has been above 95% for 2 minutes on {{ $labels.instance }}. Current: {{ $value | printf \"%.1f\" }}%."
+
+      - alert: HighNodeMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          group: infrastructure
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage has been above 85% for 5 minutes on {{ $labels.instance }}. Current: {{ $value | printf \"%.1f\" }}%."
+
+      - alert: CriticalNodeMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 95
+        for: 2m
+        labels:
+          severity: critical
+          group: infrastructure
+        annotations:
+          summary: "Critical memory usage on {{ $labels.instance }}"
+          description: "Memory usage has been above 95% for 2 minutes on {{ $labels.instance }}. Current: {{ $value | printf \"%.1f\" }}%."
+
+      - alert: HighDiskUsage
+        expr: (node_filesystem_size_bytes{fstype!~"tmpfs|overlay"} - node_filesystem_free_bytes{fstype!~"tmpfs|overlay"}) / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"} * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          group: infrastructure
+        annotations:
+          summary: "High disk usage on {{ $labels.instance }}"
+          description: "Disk usage on {{ $labels.mountpoint }} ({{ $labels.instance }}) is above 80%. Current: {{ $value | printf \"%.1f\" }}%."
+
+      - alert: CriticalDiskUsage
+        expr: (node_filesystem_size_bytes{fstype!~"tmpfs|overlay"} - node_filesystem_free_bytes{fstype!~"tmpfs|overlay"}) / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"} * 100 > 95
+        for: 1m
+        labels:
+          severity: critical
+          group: infrastructure
+        annotations:
+          summary: "Critical disk usage on {{ $labels.instance }}"
+          description: "Disk usage on {{ $labels.mountpoint }} ({{ $labels.instance }}) is above 95%. Current: {{ $value | printf \"%.1f\" }}%."
+
+      - alert: ContainerHighRestartRate
+        expr: increase(container_start_time_seconds{name!=""}[15m]) > 3
+        for: 0m
+        labels:
+          severity: warning
+          group: infrastructure
+        annotations:
+          summary: "Container {{ $labels.name }} restarting frequently"
+          description: "Container {{ $labels.name }} has restarted more than 3 times in the last 15 minutes."
+
+  # ── Application — generic HTTP ───────────────────────────────────────────────
+  - name: application
+    rules:
+      - alert: ServiceHighErrorRate
+        expr: |
+          (
+            sum by(service) (rate(http_requests_total{status_code=~"5.."}[5m]))
+            /
+            sum by(service) (rate(http_requests_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          group: application
+        annotations:
+          summary: "High 5xx error rate on {{ $labels.service }}"
+          description: "Service {{ $labels.service }} has a 5xx error rate above 5% for 5 minutes. Current: {{ $value | printf \"%.2f\" }}."
+
+      - alert: ServiceCriticalErrorRate
+        expr: |
+          (
+            sum by(service) (rate(http_requests_total{status_code=~"5.."}[5m]))
+            /
+            sum by(service) (rate(http_requests_total[5m]))
+          ) > 0.20
+        for: 2m
+        labels:
+          severity: critical
+          group: application
+        annotations:
+          summary: "Critical 5xx error rate on {{ $labels.service }}"
+          description: "Service {{ $labels.service }} has a 5xx error rate above 20% for 2 minutes. Current: {{ $value | printf \"%.2f\" }}."
+
+      - alert: ServiceHighLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum by(le, service) (rate(http_request_duration_seconds_bucket[5m]))
+          ) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          group: application
+        annotations:
+          summary: "High P95 latency on {{ $labels.service }}"
+          description: "Service {{ $labels.service }} P95 latency has been above 1s for 5 minutes. Current: {{ $value | printf \"%.2f\" }}s."
+
+      - alert: ServiceCriticalLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum by(le, service) (rate(http_request_duration_seconds_bucket[5m]))
+          ) > 5.0
+        for: 2m
+        labels:
+          severity: critical
+          group: application
+        annotations:
+          summary: "Critical P95 latency on {{ $labels.service }}"
+          description: "Service {{ $labels.service }} P95 latency has been above 5s for 2 minutes. Current: {{ $value | printf \"%.2f\" }}s."
+
+      - alert: ServiceNoTraffic
+        expr: |
+          sum by(service) (rate(http_requests_total[5m])) == 0
+          and
+          sum by(service) (http_requests_total) > 0
+        for: 10m
+        labels:
+          severity: warning
+          group: application
+        annotations:
+          summary: "No traffic on {{ $labels.service }}"
+          description: "Service {{ $labels.service }} has received zero requests in the last 10 minutes but has seen traffic before."
+
+  # ── Auth & Security ──────────────────────────────────────────────────────────
+  - name: auth_security
+    rules:
+      - alert: BruteForceAttack
+        expr: sum(rate(auth_login_total{result="failure"}[5m])) * 60 > 20
+        for: 2m
+        labels:
+          severity: critical
+          group: security
+        annotations:
+          summary: "Possible brute-force attack detected"
+          description: "Login failure rate has exceeded 20 failures/minute for 2 minutes. Current: {{ $value | printf \"%.1f\" }}/min. Investigate immediately."
+
+      - alert: HighLoginFailureRate
+        expr: |
+          sum(rate(auth_login_total{result="failure"}[10m]))
+          /
+          sum(rate(auth_login_total[10m])) > 0.30
+        for: 5m
+        labels:
+          severity: warning
+          group: security
+        annotations:
+          summary: "High login failure rate"
+          description: "More than 30% of login attempts are failing. Current: {{ $value | printf \"%.1%\" }}. May indicate credential stuffing or misconfigured clients."
+
+      - alert: High2FAFailureRate
+        expr: |
+          sum(rate(auth_2fa_total{result="failure"}[10m]))
+          /
+          sum(rate(auth_2fa_total[10m])) > 0.50
+        for: 5m
+        labels:
+          severity: warning
+          group: security
+        annotations:
+          summary: "High 2FA failure rate"
+          description: "More than 50% of 2FA attempts are failing. Current: {{ $value | printf \"%.1%\" }}. May indicate phishing or replay attacks."
+
+      - alert: AuthServiceDown
+        expr: up{job="auth_service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          group: security
+        annotations:
+          summary: "Auth service is down"
+          description: "The authentication service has been unreachable for 1 minute. No users can log in."
+
+  # ── Database ─────────────────────────────────────────────────────────────────
+  - name: database
+    rules:
+      - alert: PostgresDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          group: database
+        annotations:
+          summary: "PostgreSQL exporter is down"
+          description: "The postgres_exporter target has been unreachable for 1 minute. Database may be unavailable."
+
+      - alert: HighDBQueryLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum by(le, service, operation) (rate(db_query_duration_seconds_bucket[5m]))
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          group: database
+        annotations:
+          summary: "High DB query P95 latency — {{ $labels.service }}/{{ $labels.operation }}"
+          description: "P95 query latency for {{ $labels.operation }} in {{ $labels.service }} is above 0.5s. Current: {{ $value | printf \"%.3f\" }}s."
+
+      - alert: CriticalDBQueryLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum by(le, service, operation) (rate(db_query_duration_seconds_bucket[5m]))
+          ) > 2.0
+        for: 2m
+        labels:
+          severity: critical
+          group: database
+        annotations:
+          summary: "Critical DB query P95 latency — {{ $labels.service }}/{{ $labels.operation }}"
+          description: "P95 query latency for {{ $labels.operation }} in {{ $labels.service }} is above 2s. Current: {{ $value | printf \"%.3f\" }}s."
+
+  # ── Blockchain ───────────────────────────────────────────────────────────────
+  - name: blockchain
+    rules:
+      - alert: BlockchainServiceDown
+        expr: up{job="blockchain_service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          group: blockchain
+        annotations:
+          summary: "Blockchain service is down"
+          description: "The blockchain service has been unreachable for 1 minute. Wallet and transfer operations are unavailable."
+
+      - alert: HighBlockchainTxErrorRate
+        expr: |
+          sum(rate(blockchain_tx_errors_total[5m]))
+          /
+          sum(rate(blockchain_tx_total[5m])) > 0.10
+        for: 5m
+        labels:
+          severity: warning
+          group: blockchain
+        annotations:
+          summary: "High blockchain transaction error rate"
+          description: "More than 10% of blockchain transactions are failing. Current: {{ $value | printf \"%.2f\" }}."
+
+      - alert: CriticalBlockchainTxErrorRate
+        expr: |
+          sum(rate(blockchain_tx_errors_total[5m]))
+          /
+          sum(rate(blockchain_tx_total[5m])) > 0.50
+        for: 2m
+        labels:
+          severity: critical
+          group: blockchain
+        annotations:
+          summary: "Critical blockchain transaction error rate"
+          description: "More than 50% of blockchain transactions are failing. Current: {{ $value | printf \"%.2f\" }}. Smart contract or Hardhat node may be broken."
+
+      - alert: SlowBlockchainTransfers
+        expr: |
+          histogram_quantile(0.95,
+            sum by(le) (rate(blockchain_tx_duration_seconds_bucket{type="transfer"}[5m]))
+          ) > 15
+        for: 5m
+        labels:
+          severity: warning
+          group: blockchain
+        annotations:
+          summary: "Slow blockchain transfers"
+          description: "P95 transfer duration has been above 15s for 5 minutes. Current: {{ $value | printf \"%.1f\" }}s. Hardhat node may be under load."
+
+      - alert: WalletCreationFailing
+        expr: |
+          sum(rate(blockchain_tx_errors_total{type="wallet_creation"}[10m]))
+          /
+          (sum(rate(blockchain_tx_total{type="wallet_creation"}[10m])) + sum(rate(blockchain_tx_errors_total{type="wallet_creation"}[10m]))) > 0.20
+        for: 5m
+        labels:
+          severity: warning
+          group: blockchain
+        annotations:
+          summary: "Wallet creation failure rate is high"
+          description: "More than 20% of wallet creation attempts are failing. New user registrations may be impacted. Current: {{ $value | printf \"%.2f\" }}."
+
+  # ── Transactions ─────────────────────────────────────────────────────────────
+  - name: transactions
+    rules:
+      - alert: TransactionServiceDown
+        expr: up{job="transaction_service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          group: transactions
+        annotations:
+          summary: "Transaction service is down"
+          description: "The transaction service has been unreachable for 1 minute. Transfers and deposits are unavailable."
+
+      - alert: HighTransactionErrorRate
+        expr: |
+          sum(rate(transaction_errors_total[5m]))
+          /
+          (sum(rate(transaction_total[5m])) + sum(rate(transaction_errors_total[5m]))) > 0.10
+        for: 5m
+        labels:
+          severity: warning
+          group: transactions
+        annotations:
+          summary: "High transaction error rate"
+          description: "More than 10% of transactions are failing. Current: {{ $value | printf \"%.2f\" }}."
+
+      - alert: CriticalTransactionErrorRate
+        expr: |
+          sum(rate(transaction_errors_total[5m]))
+          /
+          (sum(rate(transaction_total[5m])) + sum(rate(transaction_errors_total[5m]))) > 0.40
+        for: 2m
+        labels:
+          severity: critical
+          group: transactions
+        annotations:
+          summary: "Critical transaction error rate"
+          description: "More than 40% of transactions are failing. Current: {{ $value | printf \"%.2f\" }}."
+
+  # ── Nginx ────────────────────────────────────────────────────────────────────
+  - name: nginx
+    rules:
+      - alert: NginxDown
+        expr: up{job="nginx"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          group: nginx
+        annotations:
+          summary: "Nginx exporter is down"
+          description: "The nginx_exporter target has been unreachable for 1 minute. The reverse proxy may be down."
+
+      - alert: NginxHighConnectionCount
+        expr: nginx_connections_active > 500
+        for: 5m
+        labels:
+          severity: warning
+          group: nginx
+        annotations:
+          summary: "High Nginx active connection count"
+          description: "Nginx has more than 500 active connections for 5 minutes. Current: {{ $value }}."

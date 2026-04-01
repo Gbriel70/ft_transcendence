@@ -1,0 +1,30 @@
+# Environment
+**/.env
+.env
+.env.local
+
+# Node
+**/node_modules
+node_modules/
+package-lock.json
+
+# Tests
+coverage/
+*.log
+
+# Docker
+postgres_data/
+nginx_certs/
+pgadmin_data/
+
+# SSL/TLS - certificados gerados localmente (não commitar chaves privadas)
+certs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
