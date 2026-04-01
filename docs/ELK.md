@@ -106,6 +106,9 @@ Recommended operator workflow:
 - `app/services/monitoring/elk/setup-elk.sh`
 - `docker-compose.yml`
 
+## Accessing Kibana
+- URL: https://localhost:8443/kibana/ or http://localhost:5601 
+
 ## Navigation
 <!-- doc-nav -->
 - [README](../README.md)

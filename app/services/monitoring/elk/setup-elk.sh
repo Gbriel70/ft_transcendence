@@ -112,19 +112,33 @@ curl -sf ${AUTH} -X PUT "${ES_URL}/minibank-logs-000001" \
       "is_write_index": true
     }
   }
-}' 2>/dev/null || echo " ✓ Index already exists (OK)."
-echo " ✓ Write index ready."
+}' 2>/dev/null && echo " ✓ Write index created." || echo " ✓ Index already exists (OK)."
+
+# Verify the alias is correctly set
+echo "[setup-elk] Verifying alias configuration..."
+ALIAS_CHECK=$(curl -sf ${AUTH} "${ES_URL}/_alias/minibank-logs" 2>/dev/null)
+if echo "$ALIAS_CHECK" | grep -q '"minibank-logs"'; then
+  echo " ✓ Alias 'minibank-logs' is correctly configured."
+else
+  echo " ⚠ WARNING: Alias may not be properly set. Response: $ALIAS_CHECK"
+fi
 
 # ── 5. Wait for Kibana and register index pattern ─────────────────────────────
 echo "[setup-elk] Waiting for Kibana at ${KIBANA_URL}..."
-until curl -sf -u "${ES_USER}:${ES_PASS}" "${KIBANA_URL}/kibana/api/status" | grep -q '"level":"available"' 2>/dev/null; do
-  echo "[setup-elk]  ... Kibana not ready yet, retrying in 10s"
-  sleep 10
+KIBANA_RETRIES=0
+until curl -sf -u "${ES_USER}:${ES_PASS}" "${KIBANA_URL}/kibana/api/status" 2>/dev/null | grep -q '"level":"available"'; do
+  KIBANA_RETRIES=$((KIBANA_RETRIES + 1))
+  if [ $KIBANA_RETRIES -gt 30 ]; then
+    echo "[setup-elk] WARNING: Kibana took too long to start. Continuing anyway..."
+    break
+  fi
+  echo "[setup-elk]  ... Kibana not ready yet, retrying in 5s (attempt $KIBANA_RETRIES/30)"
+  sleep 5
 done
 echo "[setup-elk] Kibana is ready!"
 
 echo "[setup-elk] Creating Kibana index pattern 'minibank-logs-*'..."
-curl -sf -u "${ES_USER}:${ES_PASS}" -X POST "${KIBANA_URL}/kibana/api/saved_objects/index-pattern/minibank-logs" \
+PATTERN_RESPONSE=$(curl -sf -u "${ES_USER}:${ES_PASS}" -X POST "${KIBANA_URL}/kibana/api/saved_objects/index-pattern/minibank-logs" \
   -H "Content-Type: application/json" \
   -H "kbn-xsrf: true" \
   -d '{
@@ -132,14 +146,28 @@ curl -sf -u "${ES_USER}:${ES_PASS}" -X POST "${KIBANA_URL}/kibana/api/saved_obje
       "title":        "minibank-logs-*",
       "timeFieldName": "@timestamp"
     }
-  }' 2>/dev/null || echo " ✓ Index pattern already exists (OK)."
-echo " ✓ Kibana index pattern registered."
+  }' 2>&1)
+
+if echo "$PATTERN_RESPONSE" | grep -q '"id"'; then
+  echo " ✓ Index pattern created successfully."
+elif echo "$PATTERN_RESPONSE" | grep -q 'already exists'; then
+  echo " ✓ Index pattern already exists (OK)."
+else
+  echo " ⚠ Index pattern creation response: $PATTERN_RESPONSE"
+fi
 
 # ── 6. Set default index pattern in Kibana ────────────────────────────────────
-curl -sf -u "${ES_USER}:${ES_PASS}" -X POST "${KIBANA_URL}/kibana/api/kibana/settings" \
+echo "[setup-elk] Setting default index pattern..."
+DEFAULT_RESPONSE=$(curl -sf -u "${ES_USER}:${ES_PASS}" -X POST "${KIBANA_URL}/kibana/api/kibana/settings" \
   -H "Content-Type: application/json" \
   -H "kbn-xsrf: true" \
-  -d '{"changes": {"defaultIndex": "minibank-logs"}}' 2>/dev/null || true
+  -d '{"changes": {"defaultIndex": "minibank-logs"}}' 2>&1)
+
+if echo "$DEFAULT_RESPONSE" | grep -q 'defaultIndex'; then
+  echo " ✓ Default index pattern set successfully."
+else
+  echo " ⚠ Default index pattern response: $DEFAULT_RESPONSE"
+fi
 
 echo ""
 echo "[setup-elk] ========================================================"

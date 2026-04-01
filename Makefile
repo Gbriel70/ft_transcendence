@@ -74,10 +74,10 @@ ps:
 # ══════════════════════════════════════════════════════════════════════════════
 credentials:
 	@echo "$(CYAN)$(BOLD)📊 GRAFANA$(RESET)"
-	@docker exec vault vault kv get -format=table secret/monitoring/grafana
+	@docker exec -e VAULT_ADDR=http://127.0.0.1:8200 vault vault kv get -format=table secret/monitoring/grafana
 	@echo ""
 	@echo "$(CYAN)$(BOLD)🔍 KIBANA / ELASTICSEARCH$(RESET)"
-	@docker exec vault vault kv get -format=table secret/monitoring/elastic
+	@docker exec -e VAULT_ADDR=http://127.0.0.1:8200 vault vault kv get -format=table secret/monitoring/elastic
 
 # ── Ajuda ─────────────────────────────────────────────────────────────────────
 help:
