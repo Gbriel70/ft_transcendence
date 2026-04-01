@@ -117,14 +117,14 @@ echo " ✓ Write index ready."
 
 # ── 5. Wait for Kibana and register index pattern ─────────────────────────────
 echo "[setup-elk] Waiting for Kibana at ${KIBANA_URL}..."
-until curl -sf -u "${ES_USER}:${ES_PASS}" "${KIBANA_URL}/api/status" | grep -q '"level":"available"' 2>/dev/null; do
+until curl -sf -u "${ES_USER}:${ES_PASS}" "${KIBANA_URL}/kibana/api/status" | grep -q '"level":"available"' 2>/dev/null; do
   echo "[setup-elk]  ... Kibana not ready yet, retrying in 10s"
   sleep 10
 done
 echo "[setup-elk] Kibana is ready!"
 
 echo "[setup-elk] Creating Kibana index pattern 'minibank-logs-*'..."
-curl -sf -u "${ES_USER}:${ES_PASS}" -X POST "${KIBANA_URL}/api/saved_objects/index-pattern/minibank-logs" \
+curl -sf -u "${ES_USER}:${ES_PASS}" -X POST "${KIBANA_URL}/kibana/api/saved_objects/index-pattern/minibank-logs" \
   -H "Content-Type: application/json" \
   -H "kbn-xsrf: true" \
   -d '{
@@ -136,7 +136,7 @@ curl -sf -u "${ES_USER}:${ES_PASS}" -X POST "${KIBANA_URL}/api/saved_objects/ind
 echo " ✓ Kibana index pattern registered."
 
 # ── 6. Set default index pattern in Kibana ────────────────────────────────────
-curl -sf -u "${ES_USER}:${ES_PASS}" -X POST "${KIBANA_URL}/api/kibana/settings" \
+curl -sf -u "${ES_USER}:${ES_PASS}" -X POST "${KIBANA_URL}/kibana/api/kibana/settings" \
   -H "Content-Type: application/json" \
   -H "kbn-xsrf: true" \
   -d '{"changes": {"defaultIndex": "minibank-logs"}}' 2>/dev/null || true
