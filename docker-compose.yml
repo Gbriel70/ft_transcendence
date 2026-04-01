@@ -201,7 +201,6 @@ services:
       dockerfile: nginx/dockerfile
     container_name: nginx
     ports:
-      - "443:443"
       - "8080:80"
       - "8443:443"
     volumes:
@@ -449,7 +448,7 @@ services:
     command: filebeat -e -strict.perms=false
     volumes:
       - ./app/services/monitoring/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
-      - ${DOCKER_CONTAINERS_PATH:-/var/lib/docker/containers}:/var/lib/docker/containers:ro
+      - ${DOCKER_CONTAINERS_PATH:-/home/${USER}/goinfre/docker/containers}:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       - logstash

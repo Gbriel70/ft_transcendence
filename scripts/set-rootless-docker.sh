@@ -11,11 +11,18 @@ echo "Custom directory: $CUSTOM_DOCKER_DIR"
 echo ""
 
 # Skip setup if rootless Docker env path is already configured.
-if [ -n "${DOCKER_CONTAINERS_PATH:-}" ]; then
-    echo "DOCKER_CONTAINERS_PATH is already set to: $DOCKER_CONTAINERS_PATH"
-    echo "Rootless Docker setup appears to be already configured. Skipping."
-    exit 0
-fi
+# if [ -n "${DOCKER_CONTAINERS_PATH:-}" ]; then
+#     if [ -d "$CUSTOM_DOCKER_DIR" ]; then
+#         echo "DOCKER_CONTAINERS_PATH is already set to: $DOCKER_CONTAINERS_PATH"
+#         echo "Directory exists: $CUSTOM_DOCKER_DIR"
+#         echo "Rootless Docker setup appears to be already configured. Skipping."
+
+#         exit 0
+#     else
+#         echo "DOCKER_CONTAINERS_PATH is set, but directory is missing: $CUSTOM_DOCKER_DIR"
+#         echo "Continuing setup to recreate required directories."
+#     fi
+# fi
 
 # Function to check if command succeeded
 check_error() {
