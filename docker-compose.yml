@@ -201,6 +201,7 @@ services:
       dockerfile: nginx/dockerfile
     container_name: nginx
     ports:
+      - "443:443"
       - "8080:80"
       - "8443:443"
     volumes:
@@ -262,6 +263,8 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_SERVER_ROOT_URL: https://localhost:8443/grafana
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
     volumes:
       - vault_data:/vault-keys:ro
       - ./app/services/monitoring/scripts:/vault-bootstrap:ro
