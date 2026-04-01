@@ -24,12 +24,14 @@
   - Kibana for visualization and dashboards. [X]
   - Implement log retention and archiving policies. [X] ILM: hot(7d/10GB) → warm → cold(15d) → delete(30d)
     Navigate to Stack Management → Index Lifecycle Policies:
-    The policy is defined in setup-elk.sh:
+      Go to Discover tab to search logs
+      Select the index pattern minibank-logs*
 
-    Hot phase: 7 days or 10GB → rollover to new index
-    Warm phase: 7+ days → shrink to 1 shard + force-merge
-    Cold phase: 15+ days → freeze (read-only, compressed)
-    Delete phase: 30+ days → automatically delete
+      The policy is defined in setup-elk.sh:
+      Hot phase: 7 days or 10GB → rollover to new index
+      Warm phase: 7+ days → shrink to 1 shard + force-merge
+      Cold phase: 15+ days → freeze (read-only, compressed)
+      Delete phase: 30+ days → automatically delete
   - Secure access to all components. [X] xpack.security + Kibana login + nginx TLS proxy
 
 #### - Major: Backend as microservices. [X]
