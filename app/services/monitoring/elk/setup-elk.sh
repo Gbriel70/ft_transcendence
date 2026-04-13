@@ -1,6 +1,6 @@
 #!/bin/bash
 # ─── ELK bootstrap: ILM policy + index template + Kibana index pattern ─────────
-# Run once after Elasticsearch is healthy.
+# Run once after Elasticsearch and Kibana are healthy.
 set -euo pipefail
 
 ES_URL="http://elasticsearch:9200"
@@ -17,16 +17,19 @@ AUTH="-u ${ES_USER}:${ES_PASS}"
 
 # ── 1. Wait for Elasticsearch ──────────────────────────────────────────────────
 echo "[setup-elk] Waiting for Elasticsearch at ${ES_URL}..."
+ES_RETRIES=0
 until curl -sf ${AUTH} "${ES_URL}/_cluster/health?wait_for_status=yellow&timeout=10s" > /dev/null 2>&1; do
-  echo "[setup-elk]  ... not ready yet, retrying in 5s"
+  ES_RETRIES=$((ES_RETRIES + 1))
+  if [ $ES_RETRIES -gt 30 ]; then
+    echo "[setup-elk] ERROR: Elasticsearch did not become ready in time."
+    exit 1
+  fi
+  echo "[setup-elk]  ... not ready yet, retrying in 5s (attempt ${ES_RETRIES}/30)"
   sleep 5
 done
 echo "[setup-elk] Elasticsearch is ready!"
 
 # ── 2. ILM policy ─────────────────────────────────────────────────────────────
-# Hot → 7 days / 10 GB rollover
-# Warm → shrink + force-merge after 7 days
-# Delete → after 30 days
 echo "[setup-elk] Creating ILM policy 'minibank-ilm-policy'..."
 curl -sf ${AUTH} -X PUT "${ES_URL}/_ilm/policy/minibank-ilm-policy" \
   -H "Content-Type: application/json" -d '
@@ -114,7 +117,7 @@ curl -sf ${AUTH} -X PUT "${ES_URL}/minibank-logs-000001" \
   }
 }' 2>/dev/null && echo " ✓ Write index created." || echo " ✓ Index already exists (OK)."
 
-# Verify the alias is correctly set
+# Verify the alias
 echo "[setup-elk] Verifying alias configuration..."
 ALIAS_CHECK=$(curl -sf ${AUTH} "${ES_URL}/_alias/minibank-logs" 2>/dev/null)
 if echo "$ALIAS_CHECK" | grep -q '"minibank-logs"'; then
@@ -126,13 +129,15 @@ fi
 # ── 5. Wait for Kibana and register index pattern ─────────────────────────────
 echo "[setup-elk] Waiting for Kibana at ${KIBANA_URL}..."
 KIBANA_RETRIES=0
+# Wait up to 10 minutes (120 x 5s) for Kibana — it needs Vault + ES before starting
 until curl -sf -u "${ES_USER}:${ES_PASS}" "${KIBANA_URL}/kibana/api/status" 2>/dev/null | grep -q '"level":"available"'; do
   KIBANA_RETRIES=$((KIBANA_RETRIES + 1))
-  if [ $KIBANA_RETRIES -gt 30 ]; then
-    echo "[setup-elk] WARNING: Kibana took too long to start. Continuing anyway..."
-    break
+  if [ $KIBANA_RETRIES -gt 120 ]; then
+    echo "[setup-elk] ERROR: Kibana did not become ready after 10 minutes."
+    echo "[setup-elk] Index pattern will NOT be registered. Restart elk_setup manually."
+    exit 1
   fi
-  echo "[setup-elk]  ... Kibana not ready yet, retrying in 5s (attempt $KIBANA_RETRIES/30)"
+  echo "[setup-elk]  ... Kibana not ready yet, retrying in 5s (attempt ${KIBANA_RETRIES}/120)"
   sleep 5
 done
 echo "[setup-elk] Kibana is ready!"
@@ -153,7 +158,8 @@ if echo "$PATTERN_RESPONSE" | grep -q '"id"'; then
 elif echo "$PATTERN_RESPONSE" | grep -q 'already exists'; then
   echo " ✓ Index pattern already exists (OK)."
 else
-  echo " ⚠ Index pattern creation response: $PATTERN_RESPONSE"
+  echo " ⚠ Index pattern creation failed: $PATTERN_RESPONSE"
+  exit 1
 fi
 
 # ── 6. Set default index pattern in Kibana ────────────────────────────────────
@@ -164,9 +170,9 @@ DEFAULT_RESPONSE=$(curl -sf -u "${ES_USER}:${ES_PASS}" -X POST "${KIBANA_URL}/ki
   -d '{"changes": {"defaultIndex": "minibank-logs"}}' 2>&1)
 
 if echo "$DEFAULT_RESPONSE" | grep -q 'defaultIndex'; then
-  echo " ✓ Default index pattern set successfully."
+  echo " ✓ Default index pattern set."
 else
-  echo " ⚠ Default index pattern response: $DEFAULT_RESPONSE"
+  echo " ⚠ Could not set default index pattern: $DEFAULT_RESPONSE"
 fi
 
 echo ""

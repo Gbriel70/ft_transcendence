@@ -2,7 +2,7 @@
   "title": "Auth & Security",
   "uid": "auth-security",
   "schemaVersion": 38,
-  "version": 1,
+  "version": 2,
   "refresh": "15s",
   "time": { "from": "now-3h", "to": "now" },
   "panels": [
@@ -14,7 +14,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "increase(auth_login_total{result=\"success\"}[1h])",
+          "expr": "sum(increase(auth_login_total{result=\"success\"}[1h])) or on() vector(0)",
           "legendFormat": "logins",
           "refId": "A"
         }
@@ -33,7 +33,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
       "targets": [
         {
-          "expr": "increase(auth_login_total{result=\"failure\"}[1h])",
+          "expr": "sum(increase(auth_login_total{result=\"failure\"}[1h])) or on() vector(0)",
           "legendFormat": "failures",
           "refId": "A"
         }
@@ -55,7 +55,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
       "targets": [
         {
-          "expr": "increase(auth_2fa_total{action=\"authenticate\", result=\"success\"}[1h])",
+          "expr": "sum(increase(auth_2fa_total{action=\"authenticate\", result=\"success\"}[1h])) or on() vector(0)",
           "legendFormat": "2fa",
           "refId": "A"
         }
@@ -74,7 +74,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
       "targets": [
         {
-          "expr": "sum(increase(auth_login_total{result=\"pending_2fa\"}[24h])) / sum(increase(auth_login_total[24h])) * 100",
+          "expr": "sum(increase(auth_login_total{result=\"pending_2fa\"}[24h])) / sum(increase(auth_login_total[24h])) * 100 or on() vector(0)",
           "legendFormat": "adoption %",
           "refId": "A"
         }
@@ -120,7 +120,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "targets": [
         {
-          "expr": "sum(rate(auth_login_total{result=\"failure\"}[1m])) * 60",
+          "expr": "sum(rate(auth_login_total{result=\"failure\"}[1m])) * 60 or on() vector(0)",
           "legendFormat": "failures/min",
           "refId": "A"
         }

@@ -134,7 +134,7 @@ class VaultClient
         return await this.getSecret('database');
     }
 
-    // ─── CORREÇÃO: internalSecret exposto no config ───────────────────────────
+    // ─── internalSecret exposto no config ───────────────────────────
     async getServiceConfig()
     {
         console.log(`Fetching ${this.serviceName} config from Vault...`);
@@ -165,7 +165,7 @@ class VaultClient
             bcryptRounds:   parseInt(serviceConfig.bcrypt_rounds) || 12,
             smtpUser:       serviceConfig.smtp_user || '',
             smtpPass:       serviceConfig.smtp_pass || '',
-            internalSecret: serviceConfig.internal_secret   // ← CORREÇÃO
+            internalSecret: serviceConfig.internal_secret
         };
     }
 }

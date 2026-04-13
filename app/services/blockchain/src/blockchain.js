@@ -64,7 +64,7 @@ function loadContractABI()
     return artifact.abi;
 }
 
-// ─── CORREÇÃO: polling real em vez de setTimeout fixo ────────────────────────
+// ─── WAIT FOR HARDHAT ────────────────────────
 
 async function waitForHardhat(url, maxAttempts = 30, delayMs = 3000)
 {
@@ -109,6 +109,9 @@ async function initializeBlockchain()
 
 // ─── ROUTES ───────────────────────────────────────────────────────────────────
 
+// GET /health -> liveness probe
+app.get('/health', (req, res) => res.json({ status: 'ok', service: 'blockchain' }));
+
 // GET /metrics -> Prometheus scrape endpoint
 app.get('/metrics', async (req, res) =>
 {
@@ -116,7 +119,7 @@ app.get('/metrics', async (req, res) =>
   res.send(await register.metrics());
 });
 
-// POST /wallets — Cria wallet para um usuário
+// POST /wallets — Create wallet for user_id
 app.post('/wallets', async (req, res) =>
 {
     try
@@ -126,22 +129,22 @@ app.post('/wallets', async (req, res) =>
         if (!user_id)
             return res.status(400).json({ error: 'Missing user_id' });
 
-        // 1. Gerar keypair para o usuário
+        // 1. Gerate keypair
         const userWallet = ethers.Wallet.createRandom().connect(provider);
 
-        // 2. Owner envia ETH para a wallet pagar gas futuro
+        // 2. Owner send ETH for a wallet
         const fundTx = await ownerWallet.sendTransaction({
             to:    userWallet.address,
-            value: ethers.parseEther("1.0")  // 1 ETH para gas
+            value: ethers.parseEther("1.0")
         });
         await fundTx.wait();
 
-        // 3. Registrar no contrato (credita 100 tokens)
+        // 3. Register wallet
         const contractWithOwner = contract.connect(ownerWallet);
         const tx = await contractWithOwner.registerWallet(user_id, userWallet.address);
         await tx.wait();
 
-        // 4. Salvar chave privada no Vault (SEGURO!)
+        // 4. Save private key in Vault
         await savePrivateKeyToVault(user_id, userWallet.privateKey);
 
         walletsCreatedTotal.inc();
@@ -161,7 +164,7 @@ app.post('/wallets', async (req, res) =>
     }
 });
 
-// GET /wallets/:user_id — Busca wallet pelo ID do usuário
+// GET /wallets/:user_id — Search wallet by user_id
 app.get('/wallets/:user_id', async (req, res) =>
 {
     try
@@ -185,8 +188,7 @@ app.get('/wallets/:user_id', async (req, res) =>
     }
 });
 
-// CORREÇÃO: rota corrigida para bater com o que o User Service chama
-// GET /wallets/:address/balance — Consulta saldo pelo endereço da wallet
+// GET /wallets/:address/balance — fetch balance on-chain for a wallet address
 app.get('/wallets/:address/balance', async (req, res) =>
 {
     try
@@ -215,7 +217,7 @@ app.get('/wallets/:address/balance', async (req, res) =>
     }
 });
 
-// GET /wallets/:address/transactions — histórico on-chain para uma wallet
+// GET /wallets/:address/transactions — fetch transaction history on-chain for a wallet address
 app.get('/wallets/:address/transactions', async (req, res) =>
 {
     try
@@ -373,7 +375,7 @@ app.get('/wallets/:address/gdpr-export', async (req, res) =>
     }
 });
 
-// POST /transfer - transferir usando a chave do usuário
+// POST /transfer - Transfer tokens between users (sender signs the transaction with their private key)
 app.post('/transfer', async (req, res) =>
 {
     const end = txDuration.startTimer({ type: 'transfer' });
@@ -381,7 +383,7 @@ app.post('/transfer', async (req, res) =>
     {
         const { from_user_id, to_user_id, amount } = req.body;
 
-        // 1. Buscar wallet addresses do contrato
+        // 1. Search wallet addresses for both users
         const fromAddress = await contract.getWallet(from_user_id);
         const toAddress   = await contract.getWallet(to_user_id);
 
@@ -390,19 +392,19 @@ app.post('/transfer', async (req, res) =>
         if (toAddress === ethers.ZeroAddress)
             return res.status(404).json({ error: 'Recipient wallet not found' });
 
-        // 2. Verificar saldo
+        // 2. Verify sender has sufficient balance on-chain
         const balance = await contract.getBalance(fromAddress);
         if (balance < BigInt(amount))
             return res.status(400).json({ error: `Insufficient balance. Has: ${balance}, needs: ${amount}` });
 
-        // 3. Buscar chave privada do sender no Vault
+        // 3. Search private key for sender's user_id in Vault
         const privateKey = await getPrivateKeyFromVault(from_user_id);
 
-        // 4. Criar signer com a chave do usuário (ele assina como msg.sender!)
+        // 4. Create signer with sender's private key and connect to contract
         const userSigner          = new ethers.Wallet(privateKey, provider);
         const contractWithUser    = contract.connect(userSigner);
 
-        // 5. Usuário assina e chama transfer() diretamente
+        // 5. User signs and calls transfer() directly on the contract
         const tx = await contractWithUser.transfer(toAddress, BigInt(amount));
         await tx.wait();
 
@@ -433,30 +435,44 @@ async function bootstrap()
     try
     {
         console.log('Starting Blockchain Service...');
-
-        // CORREÇÃO: polling real em vez de setTimeout fixo
         const hardhatUrl = process.env.HARDHAT_URL || 'http://hardhat:8545';
         await waitForHardhat(hardhatUrl);
 
-        // Aguarda contract_address aparecer no Vault (deploy pode ainda estar rodando)
-        let retries = 30;
+        // After Hardhat is ready, we need to ensure the contract is deployed and the address is available in Vault before starting the service
+        let contractVerified = false;
+        let retries = 60;
         while (retries-- > 0)
         {
             try
             {
                 config = await getServiceConfig();
-                if (config.contractAddress) break;
+                if (config.contractAddress)
+                {
+                    const tempProvider = new ethers.JsonRpcProvider(hardhatUrl);
+                    const code = await tempProvider.getCode(config.contractAddress);
+                    if (code !== '0x')
+                    {
+                        console.log(`Contract verified at ${config.contractAddress}`);
+                        contractVerified = true;
+                        break;
+                    }
+                    console.log(`Endereço ${config.contractAddress} sem código na chain atual — aguardando novo deploy... (${retries} left)`);
+                }
+                else
+                {
+                    console.log(`contract_address ainda não está no Vault, aguardando... (${retries} left)`);
+                }
             }
             catch (err)
             {
-                console.log(`contract_address not in Vault yet, retrying... (${retries} left)`);
-                await new Promise(r => setTimeout(r, 5000));
+                console.log(`Configuração não disponível ainda, retentando... (${retries} left): ${err.message}`);
             }
+            await new Promise(r => setTimeout(r, 5000));
         }
 
-        if (!config || !config.contractAddress)
+        if (!contractVerified)
         {
-            throw new Error('contract_address never appeared in Vault after retries');
+            throw new Error('Contrato não verificado na chain após tentativas — possível endereço stale no Vault');
         }
 
         console.log(`Hardhat  : ${config.hardhatUrl}`);

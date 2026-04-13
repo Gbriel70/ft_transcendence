@@ -7,9 +7,7 @@ COPY package*.json ./
 RUN npm install --production
 
 COPY . .
-COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 3001
 
-CMD ["/app/entrypoint.sh"]
+CMD ["npm", "start"]

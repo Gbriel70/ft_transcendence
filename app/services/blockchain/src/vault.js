@@ -4,23 +4,34 @@ const vault = require('node-vault');
 const readFile = (filePath) => fs.readFileSync(filePath, 'utf8').trim();
 
 let client;
+let tokenExpiry = 0; // timestamp em ms quando o token expira
 
 // ─── AUTENTICAÇÃO ─────────────────────────────────────────────────────────────
 
 async function getClient()
 {
-    if (client) return client;
+    const now = Date.now();
+
+    // Re-autentica se o token expirou ou vai expirar nos próximos 5 minutos
+    if (client && now < tokenExpiry - 5 * 60 * 1000)
+    {
+        return client;
+    }
 
     const serviceName = process.env.SERVICE_NAME || 'blockchain';
     const roleId      = readFile(process.env.VAULT_ROLE_ID_FILE   || `/vault-keys/approles/${serviceName}_role_id`);
     const secretId    = readFile(process.env.VAULT_SECRET_ID_FILE || `/vault-keys/approles/${serviceName}_secret_id`);
 
-    client = vault({ endpoint: process.env.VAULT_ADDR || 'http://vault:8200' });
+    const newClient = vault({ endpoint: process.env.VAULT_ADDR || 'http://vault:8200' });
 
-    const res    = await client.approleLogin({ role_id: roleId, secret_id: secretId });
-    client.token = res.auth.client_token;
+    const res       = await newClient.approleLogin({ role_id: roleId, secret_id: secretId });
+    newClient.token = res.auth.client_token;
 
-    console.log(`Authenticated with Vault as '${serviceName}'`);
+    const ttl  = res.auth.lease_duration; // em segundos
+    tokenExpiry = Date.now() + ttl * 1000;
+    client      = newClient;
+
+    console.log(`Authenticated with Vault as '${serviceName}' (TTL: ${ttl}s, expira em ${new Date(tokenExpiry).toISOString()})`);
 
     return client;
 }

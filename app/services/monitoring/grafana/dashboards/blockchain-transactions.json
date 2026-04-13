@@ -2,7 +2,7 @@
   "title": "Blockchain & Transactions",
   "uid": "blockchain-transactions",
   "schemaVersion": 38,
-  "version": 1,
+  "version": 2,
   "refresh": "15s",
   "time": { "from": "now-3h", "to": "now" },
   "panels": [
@@ -14,7 +14,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "blockchain_wallets_created_total",
+          "expr": "blockchain_wallets_created_total or on() vector(0)",
           "legendFormat": "wallets",
           "refId": "A"
         }
@@ -33,7 +33,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
       "targets": [
         {
-          "expr": "increase(blockchain_tx_total{type=\"transfer\"}[1h])",
+          "expr": "sum(increase(blockchain_tx_total{type=\"transfer\"}[1h])) or on() vector(0)",
           "legendFormat": "transfers",
           "refId": "A"
         }
@@ -52,7 +52,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
       "targets": [
         {
-          "expr": "increase(blockchain_tx_errors_total[1h])",
+          "expr": "sum(increase(blockchain_tx_errors_total[1h])) or on() vector(0)",
           "legendFormat": "errors",
           "refId": "A"
         }
@@ -74,7 +74,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
       "targets": [
         {
-          "expr": "sum(rate(blockchain_tx_errors_total[5m])) / sum(rate(blockchain_tx_total[5m])) * 100",
+          "expr": "sum(rate(blockchain_tx_errors_total[5m])) / sum(rate(blockchain_tx_total[5m])) * 100 or on() vector(0)",
           "legendFormat": "error %",
           "refId": "A"
         }

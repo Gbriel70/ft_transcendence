@@ -87,7 +87,7 @@ app.use((req, res, next) =>
     next();
 });
 
-// ─── CORREÇÃO 1: Guard — rejeita requisições antes do bootstrap terminar ──────
+// ─── Guard — reject requests before bootstrap is complete ──────
 
 app.use((req, res, next) =>
 {
@@ -122,7 +122,7 @@ function requireAuth(req, res)
     catch (e) { res.status(403).json({ error: 'Invalid token' }); return null; }
 }
 
-// ─── CORREÇÃO 2: createUserProfile envia internal secret ─────────────────────
+// ─── createUserProfile send internal secret ─────────────────────
 
 async function createUserProfile(authUserId, username)
 {
@@ -188,7 +188,7 @@ app.post('/register', async (req, res) =>
         }
         catch (error)
         {
-            // ROLLBACK: remove auth user se o perfil não foi criado
+            //remove auth user if profile creation fails
             await pool.query('DELETE FROM user_auth WHERE id = $1', [user.id]);
             throw new Error('Failed to create user profile');
         }
@@ -259,7 +259,7 @@ app.post('/login', async (req, res) =>
             });
         }
 
-        // Se 2FA está ativo, retorna temp token
+        // if user has 2FA enabled, issue a short-lived token indicating 2FA is pending instead of logging in directly
         if (user.totp_enabled)
         {
             authLoginTotal.inc({ result: 'pending_2fa', reason: 'requires_2fa' });
@@ -740,7 +740,7 @@ app.post('/gdpr/delete-request', async (req, res) =>
     }
 });
 
-// DELETE /gdpr/confirm-delete — confirm deletion via token
+// DELETE /gdpr/confirm-delete — confirm deletion by token
 app.delete('/gdpr/confirm-delete', async (req, res) =>
 {
     try

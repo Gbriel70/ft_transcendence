@@ -58,7 +58,7 @@ const authenticate = (req, res, next) => {
     }
 };
 
-// Chamar o blockchain_service internamente
+// Call blockchain service internal API
 const callBlockchain = async (method, path, body = null) => {
     const url = new URL(path, BLOCKCHAIN_URL);
 
@@ -83,19 +83,21 @@ const callBlockchain = async (method, path, body = null) => {
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
-// GET /transactions - listar transações do usuário via blockchain
+app.get('/health', (req, res) => res.json({ status: 'ok', service: 'transaction' }));
+
+// GET /transactions - List transactions for the authenticated user by blockchain service
 app.get('/transactions', authenticate, async (req, res) => {
     try {
         const userId = req.user.userId || req.user.id;
 
-        // Buscar wallet do usuário no blockchain
+        // Search wallet address for user
         const walletData = await callBlockchain('GET', `/wallets/${userId}`).catch(() => null);
 
         if (!walletData || !walletData.wallet_address) {
             return res.json({ transactions: [] });
         }
 
-        // Buscar histórico de transações via blockchain
+        // Search transactions for wallet address
         const txHistory = await callBlockchain(
             'GET',
             `/wallets/${walletData.wallet_address}/transactions`
@@ -115,7 +117,7 @@ app.get('/transactions', authenticate, async (req, res) => {
     }
 });
 
-// POST /transactions - transferir via blockchain
+// POST /transactions - transfer by blockchain
 app.post('/transactions', authenticate, async (req, res) => {
     const { to_user_id, amount } = req.body;
 
@@ -130,7 +132,7 @@ app.post('/transactions', authenticate, async (req, res) => {
             return res.status(400).json({ error: 'Cannot transfer to yourself' });
         }
 
-        // Chamar blockchain_service para transferir
+        // Call blockchain service to transfer
         const parsedAmount = Math.floor(parseFloat(amount));
         const result = await callBlockchain('POST', '/transfer', {
             from_user_id,
@@ -148,7 +150,7 @@ app.post('/transactions', authenticate, async (req, res) => {
     }
 });
 
-// POST /deposit - depositar via blockchain
+// POST /deposit
 app.post('/deposit', authenticate, async (req, res) => {
     const { amount } = req.body;
 

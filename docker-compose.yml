@@ -97,7 +97,6 @@ services:
       VAULT_ADDR: http://vault:8200
       SERVICE_NAME: auth
       USER_SERVICE_URL: http://user_service:3002
-      # GDPR email settings — set these in your .env file to enable outgoing emails
       APP_URL: ${APP_URL:-https://localhost}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -142,6 +141,12 @@ services:
         condition: service_healthy
     networks:
       - minibank-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
     restart: unless-stopped
 
   # ==================== TRANSACTION SERVICE  ====================
@@ -162,6 +167,12 @@ services:
         condition: service_healthy
     networks:
       - minibank-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
     restart: unless-stopped
 
   # ==================== BLOCKCHAIN SERVICE  ====================
@@ -192,6 +203,12 @@ services:
         condition: service_started
     networks:
       - minibank-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3004/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 90s
     restart: unless-stopped
 
   # ==================== NGINX WAF====================
@@ -379,11 +396,11 @@ services:
       vault:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:9200 >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -sf -u elastic:$$ELASTIC_PASSWORD http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s >/dev/null || exit 1"]
       interval: 30s
-      timeout: 10s
+      timeout: 15s
       retries: 10
-      start_period: 60s
+      start_period: 90s
     restart: unless-stopped
 
   # ==================== LOGSTASH ====================
